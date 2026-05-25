@@ -46,9 +46,6 @@ export function SearchBar({ className = "" }: { className?: string }) {
       >
         Найти
       </button>
-      <kbd className="ml-2 hidden border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground tnum xl:inline">
-        ⌘K
-      </kbd>
     </form>
   )
 }

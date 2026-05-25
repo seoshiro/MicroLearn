@@ -142,6 +142,8 @@ export type FavoriteItem = {
 export type CertificateItem = {
   id: string
   fileUrl: string
+  verificationCode: string
+  status: "VALID" | "REVOKED"
   issuedAt: string
   course: { id: string; title: string; coverUrl?: string | null }
 }
@@ -197,6 +199,64 @@ export type TeacherDashboard = {
   }[]
 }
 
+export type AssignmentStatus = "SUBMITTED" | "REVIEWED" | "NEEDS_REVISION"
+
+export type AssignmentSubmission = {
+  id: string
+  content: string
+  status: AssignmentStatus
+  score?: number | null
+  feedback?: string | null
+  submittedAt: string
+  reviewedAt?: string | null
+  user: { id: string; name: string; email: string }
+  reviewer?: { id: string; name: string; email: string } | null
+}
+
+export type LessonAssignment = {
+  id: string
+  lessonId: string
+  title: string
+  instructions: string
+  maxScore: number
+  submissions: AssignmentSubmission[]
+}
+
+export type LessonQuiz = {
+  id: string
+  lessonId: string
+  title: string
+  passingScore: number
+  questions: {
+    id: string
+    type: "SINGLE_CHOICE" | "MULTIPLE_CHOICE"
+    text: string
+    options: string[]
+    points: number
+    order: number
+  }[]
+  attempts: {
+    id: string
+    score: number
+    maxScore: number
+    passed: boolean
+    createdAt: string
+  }[]
+}
+
+export type TeacherStudentAnalytics = {
+  student: { id: string; name: string; email: string }
+  course: { id: string; title: string }
+  enrolledAt: string
+  completedLessons: number
+  totalLessons: number
+  progressPercent: number
+  quizAverage: number | null
+  assignments: Record<AssignmentStatus, number>
+  certificates: { id: string; status: "VALID" | "REVOKED"; verificationCode: string }[]
+  lastActivity: string
+}
+
 export type AdminOverview = {
   usersByRole: { role: AuthRole; count: number }[]
   coursesByStatus: { status: string; count: number }[]
@@ -241,14 +301,42 @@ export type AdminReport = {
   course?: { id: string; title: string; status: string } | null
 }
 
+export type AdminAuditLog = {
+  id: string
+  actorEmail?: string | null
+  action: string
+  entityType: string
+  entityId?: string | null
+  metadata?: unknown
+  createdAt: string
+  actor?: { id: string; name: string; email: string; role: AuthRole } | null
+}
+
+export type AdminCertificate = {
+  id: string
+  verificationCode: string
+  status: "VALID" | "REVOKED"
+  issuedAt: string
+  revokedAt?: string | null
+  user: { id: string; name: string; email: string }
+  course: { id: string; title: string }
+  revokedBy?: { id: string; name: string; email: string } | null
+}
+
 // -------- Именованные хуки --------
 
 export const useStudentDashboard = () => useProtectedFetch<StudentDashboard>("/dashboard/student")
 export const useTeacherDashboard = () => useProtectedFetch<TeacherDashboard>("/dashboard/teacher")
+export const useTeacherStudentAnalytics = () =>
+  useProtectedFetch<TeacherStudentAnalytics[]>("/dashboard/teacher/students")
 export const useAdminOverview = () => useProtectedFetch<AdminOverview>("/admin/overview")
 export const useAdminUsers = (qs = "") => useProtectedFetch<AdminUser[]>(`/admin/users${qs}`)
 export const useAdminCourses = (qs = "") => useProtectedFetch<AdminCourse[]>(`/admin/courses${qs}`)
 export const useAdminReports = (qs = "") => useProtectedFetch<AdminReport[]>(`/admin/reports${qs}`)
+export const useAdminAuditLogs = (qs = "") =>
+  useProtectedFetch<AdminAuditLog[]>(`/admin/audit-logs${qs}`)
+export const useAdminCertificates = () =>
+  useProtectedFetch<AdminCertificate[]>("/admin/certificates")
 export const useMyEnrollments = () => useProtectedFetch<EnrollmentItem[]>("/enrollments/my")
 export const useMyFavorites = () => useProtectedFetch<FavoriteItem[]>("/favorites/my")
 export const useMyCertificates = () => useProtectedFetch<CertificateItem[]>("/certificates/my")

@@ -128,6 +128,22 @@ router.get(
   }),
 )
 
+router.get(
+  "/certificates",
+  asyncHandler(async (_req: Request, res: Response) => {
+    const certificates = await prisma.certificate.findMany({
+      orderBy: { issuedAt: "desc" },
+      take: 50,
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        course: { select: { id: true, title: true } },
+        revokedBy: { select: { id: true, name: true, email: true } },
+      },
+    })
+    res.json({ data: certificates })
+  }),
+)
+
 const reportsQuery = z.object({
   status: z.nativeEnum(ReportStatus).optional(),
 })
@@ -147,6 +163,39 @@ router.get(
       },
     })
     res.json({ data: reports })
+  }),
+)
+
+const auditQuery = z.object({
+  action: z.string().optional(),
+  entityType: z.string().optional(),
+  actor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+})
+
+router.get(
+  "/audit-logs",
+  validate(auditQuery, "query"),
+  asyncHandler(async (req: Request, res: Response) => {
+    const { action, entityType, actor, limit } = req.query as unknown as z.infer<typeof auditQuery>
+    const logs = await prisma.auditLog.findMany({
+      where: {
+        ...(action ? { action: { contains: action, mode: "insensitive" } } : {}),
+        ...(entityType ? { entityType } : {}),
+        ...(actor
+          ? {
+              OR: [
+                { actorEmail: { contains: actor, mode: "insensitive" } },
+                { actor: { name: { contains: actor, mode: "insensitive" } } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: { actor: { select: { id: true, name: true, email: true, role: true } } },
+    })
+    res.json({ data: logs })
   }),
 )
 

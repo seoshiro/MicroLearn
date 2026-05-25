@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { GraduationCap, User, Users, ArrowRight, Loader2 } from "lucide-react"
+import { GraduationCap, User, Users, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 
 type Role = "student" | "teacher" | "user"
@@ -529,20 +529,36 @@ function Field({
   required?: boolean
   minLength?: number
 }) {
+  const isPassword = type === "password"
+  const [show, setShow] = useState(false)
+  const inputType = isPassword ? (show ? "text" : "password") : type
+
   return (
     <label className="flex flex-col gap-2">
       <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">{label}</span>
-      <input
-        type={type}
-        name={name}
-        placeholder={placeholder}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        value={value ?? ""}
-        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-        className="h-12 border border-border bg-background px-3 text-[14px] text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground"
-      />
+      <div className="relative">
+        <input
+          type={inputType}
+          name={name}
+          placeholder={placeholder}
+          autoComplete={autoComplete}
+          required={required}
+          minLength={minLength}
+          value={value ?? ""}
+          onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+          className="h-12 w-full border border-border bg-background px-3 pr-12 text-[14px] text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground"
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={show ? "Скрыть пароль" : "Показать пароль"}
+          >
+            {show ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+          </button>
+        )}
+      </div>
     </label>
   )
 }

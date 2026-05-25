@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { api, ApiError } from "@/lib/api"
 import { useCourse, useCourses } from "@/lib/hooks"
@@ -32,7 +32,10 @@ export function CourseBuilder() {
 
   async function addModule() {
     const title = newModuleTitle.trim()
-    if (!title || !selectedCourseId) return
+    if (!title || !selectedCourseId) {
+      console.log("добавить модуль")
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -174,14 +177,15 @@ export function CourseBuilder() {
                   onClick={() => addLesson(module.id)}
                   className="underline-offset-4 hover:underline"
                 >
-                  + Урок
+                  + УРОК
                 </button>
                 <button
                   onClick={() => removeModule(module.id)}
-                  className="text-muted hover:text-accent"
+                  className="inline-flex h-7 w-7 items-center justify-center border border-border text-muted hover:border-accent hover:text-accent"
                   aria-label="Удалить модуль"
+                  title="Удалить модуль"
                 >
-                  ×
+                  <Trash2 className="h-4 w-4" aria-hidden />
                 </button>
               </div>
             </div>
@@ -234,10 +238,10 @@ export function CourseBuilder() {
           <div className="col-span-3 md:col-span-2 self-center text-right">
             <button
               onClick={addModule}
-              disabled={busy || !newModuleTitle.trim()}
+              disabled={busy}
               className="text-[12px] uppercase tracking-[0.14em] underline underline-offset-4 decoration-accent hover:text-accent disabled:opacity-60 inline-flex items-center gap-2"
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}+ Добавить
+              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}+ ДОБАВИТЬ
             </button>
           </div>
         </div>
@@ -328,14 +332,15 @@ function LessonRow({
         </div>
         <div className="col-span-2 self-center flex justify-end gap-3 text-[12px] uppercase tracking-[0.14em]">
           <button onClick={toggleEditor} className="text-muted hover:text-foreground">
-            {open ? "Скрыть" : "Редакт."}
+            {open ? "Скрыть" : "РЕДАКТ."}
           </button>
           <button
             onClick={onRemove}
-            className="text-muted hover:text-accent text-[18px] leading-none"
+            className="inline-flex h-7 w-7 items-center justify-center border border-border text-muted hover:border-accent hover:text-accent"
             aria-label="Удалить урок"
+            title="Удалить урок"
           >
-            ×
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </div>
       </div>

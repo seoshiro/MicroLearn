@@ -3,10 +3,17 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 
 type NavItem = {
   label: string
   href: string
+}
+
+const PLAN_LABEL: Record<"FREE" | "PRO" | "PREMIUM", string> = {
+  FREE: "Free",
+  PRO: "PRO",
+  PREMIUM: "Premium",
 }
 
 export function DashboardShell({
@@ -20,13 +27,22 @@ export function DashboardShell({
 }: {
   edition?: string
   role: string
-  title: string
-  subtitle: string
+  title?: string
+  subtitle?: string
   nav: NavItem[]
   aside?: ReactNode
   children: ReactNode
 }) {
   const pathname = usePathname() ?? ""
+  const { user } = useAuth()
+
+  // Если страница не передала свой title/subtitle — берём данные текущего юзера.
+  const displayTitle = title ?? user?.name ?? "Личный кабинет"
+  const displaySubtitle =
+    subtitle ??
+    [user?.country, user ? `Тариф ${PLAN_LABEL[user.plan]}` : null]
+      .filter((v): v is string => Boolean(v && v.trim()))
+      .join(" · ")
 
   // Находим пункт с самым длинным совпадающим префиксом — это и будет активный.
   // Так избегаем ситуации, когда, например, /teacher и /teacher/new оба подсвечиваются.
@@ -48,11 +64,13 @@ export function DashboardShell({
               {edition ? `${edition} · ${role}` : role}
             </span>
             <h1 className="mt-4 font-display text-[12vw] leading-[0.9] tracking-[-0.035em] md:text-[5vw]">
-              {title}
+              {displayTitle}
             </h1>
-            <p className="mt-4 max-w-[50ch] text-[14px] leading-[1.55] text-foreground">
-              {subtitle}
-            </p>
+            {displaySubtitle && (
+              <p className="mt-4 max-w-[50ch] text-[14px] leading-[1.55] text-foreground">
+                {displaySubtitle}
+              </p>
+            )}
           </div>
           {aside ? <div className="col-span-12 md:col-span-4">{aside}</div> : null}
         </div>

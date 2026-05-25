@@ -118,9 +118,9 @@ export function Footer() {
               Контакты
             </h4>
             <ul className="flex flex-col gap-2 tnum">
-              <li>Алматы, пр. Абая, 52</li>
-              <li>СПб, наб. Фонтанки, 14</li>
-              <li>hello@microlearn.io</li>
+              <li>Астана, пр. Абая, 52</li>
+              <li>Телефон: 8 771 580 53 53</li>
+              <li>Email: microlearn@gmail.com</li>
             </ul>
           </div>
         </div>
@@ -128,7 +128,7 @@ export function Footer() {
         <div className="grid grid-cols-12 gap-x-6 border-t border-rule py-6 text-[11px] uppercase tracking-[0.22em] text-muted-foreground tnum">
           <span className="col-span-12 md:col-span-4">© 2026 MicroLearn LLP</span>
           <span className="hidden md:block md:col-span-4 md:text-center">
-            Свёрстано в Алматы &amp; СПб
+            Diploma project
           </span>
           <span className="col-span-12 md:col-span-4 md:text-right">v0.4.1</span>
         </div>

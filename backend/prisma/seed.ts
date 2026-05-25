@@ -6,6 +6,9 @@ import {
   LessonType,
   NotificationType,
   ReportStatus,
+  AssignmentStatus,
+  QuizQuestionType,
+  CertificateStatus,
 } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
@@ -91,8 +94,15 @@ async function main() {
   console.log("Seeding MicroLearn database...")
 
   // Clean up (order matters due to FK)
+  await prisma.auditLog.deleteMany()
+  await prisma.planPayment.deleteMany()
   await prisma.notification.deleteMany()
   await prisma.moderationReport.deleteMany()
+  await prisma.quizAttempt.deleteMany()
+  await prisma.quizQuestion.deleteMany()
+  await prisma.quiz.deleteMany()
+  await prisma.assignmentSubmission.deleteMany()
+  await prisma.assignment.deleteMany()
   await prisma.certificate.deleteMany()
   await prisma.lessonProgress.deleteMany()
   await prisma.favorite.deleteMany()
@@ -248,6 +258,111 @@ async function main() {
     }
   }
 
+  const lessons = await prisma.lesson.findMany({
+    include: { module: { select: { courseId: true, order: true } } },
+    orderBy: [{ module: { order: "asc" } }, { order: "asc" }],
+  })
+
+  const firstTextLessonByCourse = new Map<string, (typeof lessons)[number]>()
+  for (const lesson of lessons) {
+    if (lesson.type === LessonType.TEXT && !firstTextLessonByCourse.has(lesson.module.courseId)) {
+      firstTextLessonByCourse.set(lesson.module.courseId, lesson)
+    }
+  }
+
+  const assignments = []
+  for (const [courseId, lesson] of firstTextLessonByCourse) {
+    const course = courses.find((item) => item.id === courseId)
+    assignments.push(
+      await prisma.assignment.create({
+        data: {
+          lessonId: lesson.id,
+          title: `Практика: ${lesson.title}`,
+          instructions:
+            "Сдайте короткий разбор: цель урока, что получилось применить, и один вопрос преподавателю. 6-10 предложений достаточно для demo-проверки.",
+          maxScore: 100,
+        },
+      }),
+    )
+    if (course?.id === courses[0].id) {
+      await prisma.assignmentSubmission.create({
+        data: {
+          assignmentId: assignments[assignments.length - 1].id,
+          userId: students[0].id,
+          reviewerId: teachers[0].id,
+          content:
+            "Я разобрал структуру фреймов, собрал простой экран и отметил, где нужно вынести повторяющиеся элементы в компоненты. Вопрос: когда лучше создавать локальный компонент, а когда уже оформлять элемент как часть дизайн-системы?",
+          status: AssignmentStatus.REVIEWED,
+          score: 92,
+          feedback:
+            "Хороший практический разбор. На защите можно показать, что преподаватель видит работу и оставляет оценку.",
+          reviewedAt: new Date(),
+        },
+      })
+    }
+  }
+
+  const quizLessons = lessons.filter((lesson) => lesson.type === LessonType.QUIZ)
+  const quizzes = []
+  for (const lesson of quizLessons) {
+    const quiz = await prisma.quiz.create({
+      data: {
+        lessonId: lesson.id,
+        title: `Тест: ${lesson.title}`,
+        passingScore: 70,
+        questions: {
+          create: [
+            {
+              type: QuizQuestionType.SINGLE_CHOICE,
+              text: "Что важнее всего после короткого практического урока?",
+              options: [
+                "Закрыть вкладку",
+                "Зафиксировать вывод и следующий шаг",
+                "Сразу менять стек",
+              ],
+              correctAnswers: ["Зафиксировать вывод и следующий шаг"],
+              points: 1,
+              order: 1,
+            },
+            {
+              type: QuizQuestionType.MULTIPLE_CHOICE,
+              text: "Какие действия помогают закрепить материал?",
+              options: ["Повторить пример", "Записать вопрос", "Игнорировать чеклист"],
+              correctAnswers: ["Повторить пример", "Записать вопрос"],
+              points: 2,
+              order: 2,
+            },
+          ],
+        },
+      },
+      include: { questions: true },
+    })
+    quizzes.push(quiz)
+  }
+
+  const firstQuiz = quizzes[0]
+  if (firstQuiz) {
+    await prisma.quizAttempt.create({
+      data: {
+        quizId: firstQuiz.id,
+        userId: students[0].id,
+        answers: [
+          {
+            questionId: firstQuiz.questions.find((q) => q.order === 1)!.id,
+            answer: "Зафиксировать вывод и следующий шаг",
+          },
+          {
+            questionId: firstQuiz.questions.find((q) => q.order === 2)!.id,
+            answer: ["Повторить пример", "Записать вопрос"],
+          },
+        ],
+        score: 3,
+        maxScore: 3,
+        passed: true,
+      },
+    })
+  }
+
   // Reviews — 15
   const reviewers = students
   let reviewCount = 0
@@ -317,6 +432,42 @@ async function main() {
         details: "Видео открывается, но студент предлагает добавить краткий конспект под роликом.",
         status: ReportStatus.RESOLVED,
         resolution: "Добавлен текстовый конспект в материалы урока.",
+      },
+    ],
+  })
+
+  await prisma.certificate.create({
+    data: {
+      userId: students[0].id,
+      courseId: courses[0].id,
+      fileUrl: "/uploads/certificates/demo-certificate.pdf",
+      verificationCode: "ML-DEMO-2026",
+      status: CertificateStatus.VALID,
+    },
+  })
+
+  await prisma.auditLog.createMany({
+    data: [
+      {
+        actorId: students[0].id,
+        actorEmail: students[0].email,
+        action: "assignment.submitted",
+        entityType: "AssignmentSubmission",
+        metadata: { demo: true },
+      },
+      {
+        actorId: teachers[0].id,
+        actorEmail: teachers[0].email,
+        action: "assignment.reviewed",
+        entityType: "AssignmentSubmission",
+        metadata: { score: 92 },
+      },
+      {
+        actorId: admin.id,
+        actorEmail: admin.email,
+        action: "certificate.verified",
+        entityType: "Certificate",
+        metadata: { verificationCode: "ML-DEMO-2026" },
       },
     ],
   })

@@ -121,7 +121,7 @@ describe("auth routes", () => {
     expect(login.status).toBe(200)
     expect(login.body.data.accessToken).toEqual(expect.any(String))
 
-    const cookie = registered.headers["set-cookie"]
+    const cookie = login.headers["set-cookie"] ?? registered.headers["set-cookie"]
     const refreshed = await request(app).post("/auth/refresh").set("Cookie", cookie)
 
     expect(refreshed.status).toBe(200)

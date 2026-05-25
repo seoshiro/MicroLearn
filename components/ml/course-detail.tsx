@@ -25,12 +25,14 @@ export function CourseDetail({ id }: { id: string }) {
   const searchParams = useSearchParams()
   const { user } = useAuth()
   const { data: course, loading, error, reload } = useCourse(id)
-  const { data: progress, reload: reloadProgress } = useCourseProgress(id)
+  const isEnrolled = course?.isEnrolled ?? false
+  const canTrackProgress = !!course && (isEnrolled || course.isTeacher)
+  const { data: progress, reload: reloadProgress } = useCourseProgress(canTrackProgress ? id : null)
   const { data: favs, reload: reloadFavs } = useMyFavorites()
   const { data: reviews, reload: reloadReviews } = useFetch<Review[]>(`/reviews/course/${id}`, [id])
 
   const isFavorited = !!favs?.find((f) => f.courseId === id)
-  const isEnrolled = course?.isEnrolled ?? false
+  const canEnrollAsStudent = !user || user.role === "STUDENT" || user.role === "USER"
 
   const [busy, setBusy] = useState<"enroll" | "unenroll" | "favorite" | "review" | null>(null)
   const [opError, setOpError] = useState<string | null>(null)
@@ -83,7 +85,13 @@ export function CourseDetail({ id }: { id: string }) {
       await reload()
       await reloadProgress()
     } catch (err) {
-      setOpError(err instanceof ApiError ? err.message : "Не удалось записаться")
+      setOpError(
+        err instanceof ApiError && err.status === 403
+          ? "Запись на курс доступна только студенту. Для проверки обучения войдите под demo-студентом."
+          : err instanceof ApiError
+            ? err.message
+            : "Не удалось записаться",
+      )
     } finally {
       setBusy(null)
     }
@@ -226,7 +234,7 @@ export function CourseDetail({ id }: { id: string }) {
                     <CheckCircle2 className="h-4 w-4" aria-hidden />
                     Вы записаны — отписаться
                   </button>
-                ) : (
+                ) : canEnrollAsStudent ? (
                   <button
                     onClick={enroll}
                     disabled={busy === "enroll"}
@@ -235,6 +243,11 @@ export function CourseDetail({ id }: { id: string }) {
                     {busy === "enroll" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
                     Записаться на курс
                   </button>
+                ) : (
+                  <div className="border border-rule bg-panel px-4 py-3 text-[13px] leading-[1.55] text-muted">
+                    Запись на курс доступна только студенту. Для демонстрации обучения войдите как
+                    <span className="text-foreground"> temir@microlearn.io</span>.
+                  </div>
                 )}
 
                 <button
@@ -431,7 +444,7 @@ export function CourseDetail({ id }: { id: string }) {
                     Открыть урок
                   </Link>
                 )}
-                {selectedLesson && !canOpenLessons && (
+                {selectedLesson && !canOpenLessons && canEnrollAsStudent && (
                   <button
                     type="button"
                     onClick={enroll}
@@ -440,6 +453,12 @@ export function CourseDetail({ id }: { id: string }) {
                   >
                     {user ? "Записаться и открыть уроки" : "Войти и записаться"}
                   </button>
+                )}
+                {selectedLesson && !canOpenLessons && !canEnrollAsStudent && (
+                  <div className="mt-5 border border-rule bg-panel px-4 py-3 text-[13px] leading-[1.55] text-muted">
+                    Уроки открываются из роли студента. Для проверки обучения используйте
+                    <span className="text-foreground"> temir@microlearn.io</span>.
+                  </div>
                 )}
               </div>
             </div>

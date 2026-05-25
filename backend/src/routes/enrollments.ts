@@ -10,6 +10,7 @@ import { assertCanEnroll, planFor } from "../services/plan.service"
 import { courseProgressPercent } from "../services/progress.service"
 import { sendEnrollment } from "../services/email.service"
 import { emitToUser } from "../socket"
+import { writeAuditLog } from "../services/audit-log.service"
 
 const router = Router()
 
@@ -52,6 +53,13 @@ router.post(
 
     sendEnrollment(user.email, user.name, enrollment.course.title).catch(() => undefined)
     emitToUser(enrollment.course.teacherId, "notification:new", teacherNotifs)
+    await writeAuditLog({
+      req,
+      action: "course.enrolled",
+      entityType: "Enrollment",
+      entityId: enrollment.id,
+      metadata: { courseId },
+    })
 
     res.status(201).json({ data: enrollment })
   }),
@@ -70,6 +78,13 @@ router.delete(
     if (!existing) throw new HttpError(404, "Not enrolled")
 
     await prisma.enrollment.delete({ where: { id: existing.id } })
+    await writeAuditLog({
+      req,
+      action: "course.unenrolled",
+      entityType: "Enrollment",
+      entityId: existing.id,
+      metadata: { courseId },
+    })
     res.status(204).end()
   }),
 )

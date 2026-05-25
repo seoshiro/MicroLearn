@@ -70,6 +70,138 @@ router.get(
 )
 
 router.get(
+  "/teacher/students",
+  verifyAccess,
+  requireRole(Role.TEACHER),
+  asyncHandler(async (req: Request, res: Response) => {
+    const teacherId = req.user!.id
+    const courses = await prisma.course.findMany({
+      where: { teacherId },
+      select: {
+        id: true,
+        title: true,
+        modules: { select: { lessons: { select: { id: true } } } },
+      },
+    })
+    const courseIds = courses.map((course) => course.id)
+    const lessonIds = courses.flatMap((course) =>
+      course.modules.flatMap((module) => module.lessons.map((lesson) => lesson.id)),
+    )
+    const totalLessonsByCourse = new Map(
+      courses.map((course) => [
+        course.id,
+        course.modules.reduce((sum, module) => sum + module.lessons.length, 0),
+      ]),
+    )
+
+    const [enrollments, progressRows, attempts, submissions, certificates] = await Promise.all([
+      prisma.enrollment.findMany({
+        where: { courseId: { in: courseIds } },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          course: { select: { id: true, title: true } },
+        },
+        orderBy: { enrolledAt: "desc" },
+      }),
+      prisma.lessonProgress.findMany({
+        where: { completed: true, lessonId: { in: lessonIds } },
+        include: { lesson: { select: { module: { select: { courseId: true } } } } },
+      }),
+      prisma.quizAttempt.findMany({
+        where: { quiz: { lesson: { module: { courseId: { in: courseIds } } } } },
+        include: {
+          quiz: { select: { lesson: { select: { module: { select: { courseId: true } } } } } },
+        },
+      }),
+      prisma.assignmentSubmission.findMany({
+        where: { assignment: { lesson: { module: { courseId: { in: courseIds } } } } },
+        include: {
+          assignment: {
+            select: { lesson: { select: { module: { select: { courseId: true } } } } },
+          },
+        },
+      }),
+      prisma.certificate.findMany({
+        where: { courseId: { in: courseIds } },
+        select: { id: true, userId: true, courseId: true, status: true, verificationCode: true },
+      }),
+    ])
+
+    const progressByKey = new Map<string, { count: number; last: Date | null }>()
+    for (const row of progressRows) {
+      const courseId = row.lesson.module.courseId
+      const key = `${row.userId}:${courseId}`
+      const item = progressByKey.get(key) ?? { count: 0, last: null }
+      item.count += 1
+      if (row.completedAt && (!item.last || row.completedAt > item.last))
+        item.last = row.completedAt
+      progressByKey.set(key, item)
+    }
+
+    const quizByKey = new Map<string, { sum: number; count: number; last: Date | null }>()
+    for (const attempt of attempts) {
+      const courseId = attempt.quiz.lesson.module.courseId
+      const key = `${attempt.userId}:${courseId}`
+      const item = quizByKey.get(key) ?? { sum: 0, count: 0, last: null }
+      item.sum += attempt.maxScore ? Math.round((attempt.score / attempt.maxScore) * 100) : 0
+      item.count += 1
+      if (!item.last || attempt.createdAt > item.last) item.last = attempt.createdAt
+      quizByKey.set(key, item)
+    }
+
+    const assignmentsByKey = new Map<string, Record<string, number>>()
+    for (const submission of submissions) {
+      const courseId = submission.assignment.lesson.module.courseId
+      const key = `${submission.userId}:${courseId}`
+      const item = assignmentsByKey.get(key) ?? {
+        SUBMITTED: 0,
+        REVIEWED: 0,
+        NEEDS_REVISION: 0,
+      }
+      item[submission.status] = (item[submission.status] ?? 0) + 1
+      assignmentsByKey.set(key, item)
+    }
+
+    const certsByKey = new Map<string, typeof certificates>()
+    for (const cert of certificates) {
+      const key = `${cert.userId}:${cert.courseId}`
+      certsByKey.set(key, [...(certsByKey.get(key) ?? []), cert])
+    }
+
+    const data = enrollments.map((enrollment) => {
+      const key = `${enrollment.userId}:${enrollment.courseId}`
+      const progress = progressByKey.get(key) ?? { count: 0, last: null }
+      const quiz = quizByKey.get(key)
+      const completedLessons = progress.count
+      const totalLessons = totalLessonsByCourse.get(enrollment.courseId) ?? 0
+      const progressPercent = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0
+      const lastActivity = [progress.last, quiz?.last ?? null, enrollment.enrolledAt]
+        .filter(Boolean)
+        .sort((a, b) => b!.getTime() - a!.getTime())[0]
+
+      return {
+        student: enrollment.user,
+        course: enrollment.course,
+        enrolledAt: enrollment.enrolledAt,
+        completedLessons,
+        totalLessons,
+        progressPercent,
+        quizAverage: quiz?.count ? Math.round(quiz.sum / quiz.count) : null,
+        assignments: assignmentsByKey.get(key) ?? {
+          SUBMITTED: 0,
+          REVIEWED: 0,
+          NEEDS_REVISION: 0,
+        },
+        certificates: certsByKey.get(key) ?? [],
+        lastActivity,
+      }
+    })
+
+    res.json({ data })
+  }),
+)
+
+router.get(
   "/student",
   verifyAccess,
   asyncHandler(async (req: Request, res: Response) => {

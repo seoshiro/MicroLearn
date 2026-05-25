@@ -2,7 +2,7 @@ const QUOTES = [
   {
     text: "Короткие уроки по 10 минут, которые реально складываются в навык. За две недели собрала первый настоящий макет в Figma и довела его до прототипа.",
     author: "Алия Нурмагамбетова",
-    role: "Джуниор-дизайнер, Алматы",
+    role: "Джуниор-дизайнер, Астана",
     course: "Интерфейсы без лишнего · А. Ковалёва",
     mono: "АН",
   },
@@ -16,7 +16,7 @@ const QUOTES = [
   {
     text: "Пришёл за SQL, остался из-за того, как устроена подача. Материала ровно столько, сколько нужно, без «доливки» до круглой цифры часов.",
     author: "Данияр Кенжебаев",
-    role: "Продакт-менеджер, Астана",
+    role: "Продакт-менеджер, Тараз",
     course: "SQL для продакт-менеджеров · Д. Орлов",
     mono: "ДК",
   },
@@ -24,7 +24,7 @@ const QUOTES = [
 
 export function Testimonials() {
   return (
-    <section className="section-rule bg-surface">
+    <section id="testimonials" className="section-rule bg-surface">
       <div className="mx-auto max-w-[1440px] px-6 md:px-10">
         <div className="grid grid-cols-12 gap-x-6 gap-y-10 py-16 md:py-24">
           <div className="col-span-12 md:col-span-4">

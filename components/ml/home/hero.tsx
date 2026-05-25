@@ -1,9 +1,11 @@
+"use client"
+
 import Link from "next/link"
 import { ArrowUpRight } from "lucide-react"
 
 export function HomeHero() {
   return (
-    <section className="relative">
+    <section id="manifest" className="relative">
       <div className="mx-auto max-w-[1440px] px-4 md:px-10">
         <div className="grid grid-cols-12 gap-x-6 gap-y-10 pb-12 pt-10 md:gap-y-0 md:pb-20 md:pt-16">
           {/* Левая метка-номер */}
@@ -26,21 +28,23 @@ export function HomeHero() {
                 className="block pl-[6vw] text-[14vw] leading-[0.9] md:pl-[10vw] md:text-[8.8vw] md:leading-[0.88]"
                 style={{ fontVariationSettings: '"opsz" 96, "wdth" 85' }}
               >
-                как читать
+                как листать
               </span>
               <span
                 className="block text-[14vw] italic leading-[0.9] text-accent md:text-[8.8vw] md:leading-[0.88]"
                 style={{ fontVariationSettings: '"opsz" 96, "wdth" 75' }}
               >
-                хорошую книгу
+                ленту новостей
                 <span className="caret" aria-hidden />
               </span>
             </h1>
 
-            <p className="mt-10 max-w-[44ch] text-[15px] leading-[1.55] text-foreground">
-              Короткие уроки от практиков индустрии. Без стоковых лекций, накрученных рейтингов и
-              бесконечного «премиум-контента». Только отобранный материал и авторы, чей опыт можно
-              проверить.
+            <p className="mt-10 max-w-[50ch] text-[15px] leading-[1.55] text-foreground">
+              MicroLearn — это современная платформа микрообучения, созданная для тех, кто ценит
+              своё время. Каждый урок занимает всего 5-10 минут, но даёт максимум пользы. Учись в
+              своём темпе, где угодно и когда удобно — в метро, на обеде или перед сном.
+              Закрепляй знания интерактивными тестами, отслеживай свой прогресс и получай
+              сертификаты по завершении курсов.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-6">
@@ -68,17 +72,29 @@ export function HomeHero() {
             </h2>
             <ol className="mt-6 flex flex-col divide-y divide-rule/30 text-[14px]">
               {[
-                "Шесть авторов, редкие голоса",
-                "Курс выпуска: продуктовый дизайн",
-                "Манифест микро-обучения",
-                "Отзывы и разборы",
-              ].map((t, i) => (
-                <li key={t} className="flex items-start gap-4 py-3">
-                  <span className="mt-0.5 text-[11px] tnum text-muted-foreground">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <span className="flex-1 text-foreground">{t}</span>
-                  <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                { text: "Манифест микро-обучения", href: "#manifest" },
+                { text: "Авторы номера", href: "#teachers" },
+                { text: "Курс выпуска: продуктовый дизайн", href: "#journal" },
+                { text: "Популярные курсы", href: "#popular" },
+                { text: "Отзывы", href: "#testimonials" },
+                { text: "Платформа", href: "#students" },
+              ].map((item, i) => (
+                <li key={item.href}>
+                  <a
+                    href={item.href}
+                    className="group flex items-start gap-4 py-3 transition-colors hover:text-accent"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      const el = document.querySelector(item.href)
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }}
+                  >
+                    <span className="mt-0.5 text-[11px] tnum text-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 text-foreground group-hover:text-accent">{item.text}</span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden />
+                  </a>
                 </li>
               ))}
             </ol>

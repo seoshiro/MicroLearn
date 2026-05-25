@@ -6,6 +6,8 @@ import { api, ApiError } from "@/lib/api"
 import { useAuth } from "@/lib/auth-context"
 import {
   useAdminCourses,
+  useAdminAuditLogs,
+  useAdminCertificates,
   useAdminOverview,
   useAdminReports,
   useAdminUsers,
@@ -13,13 +15,21 @@ import {
 } from "@/lib/hooks"
 
 const reportStatuses: ReportStatus[] = ["OPEN", "REVIEWING", "RESOLVED", "DISMISSED"]
+const reportStatusLabels: Record<ReportStatus, string> = {
+  OPEN: "ОТКРЫТО",
+  REVIEWING: "НА ПРОВЕРКЕ",
+  RESOLVED: "РЕШЕНО",
+  DISMISSED: "ОТКЛОНЕНО",
+}
 
 export function AdminPanel() {
   const { user } = useAuth()
   const [userQuery, setUserQuery] = useState("")
   const [courseQuery, setCourseQuery] = useState("")
   const [reportStatus, setReportStatus] = useState<ReportStatus | "">("")
+  const [auditAction, setAuditAction] = useState("")
   const [busyReport, setBusyReport] = useState<string | null>(null)
+  const [busyCertificate, setBusyCertificate] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   const userQs = useMemo(() => {
@@ -33,6 +43,11 @@ export function AdminPanel() {
     return qs.toString() ? `?${qs}` : ""
   }, [courseQuery])
   const reportQs = reportStatus ? `?status=${reportStatus}` : ""
+  const auditQs = useMemo(() => {
+    const qs = new URLSearchParams()
+    if (auditAction.trim()) qs.set("action", auditAction.trim())
+    return qs.toString() ? `?${qs}` : ""
+  }, [auditAction])
 
   const {
     data: overview,
@@ -48,6 +63,18 @@ export function AdminPanel() {
     error: reportsError,
     reload: reloadReports,
   } = useAdminReports(reportQs)
+  const {
+    data: auditLogs,
+    loading: auditLoading,
+    error: auditError,
+    reload: reloadAudit,
+  } = useAdminAuditLogs(auditQs)
+  const {
+    data: certificates,
+    loading: certificatesLoading,
+    error: certificatesError,
+    reload: reloadCertificates,
+  } = useAdminCertificates()
 
   async function updateReport(id: string, status: ReportStatus) {
     setBusyReport(id)
@@ -66,6 +93,21 @@ export function AdminPanel() {
       setMessage(err instanceof ApiError ? err.message : "Не удалось обновить жалобу")
     } finally {
       setBusyReport(null)
+    }
+  }
+
+  async function revokeCertificate(id: string) {
+    if (!confirm("Отозвать сертификат? Публичная проверка покажет статус REVOKED.")) return
+    setBusyCertificate(id)
+    setMessage(null)
+    try {
+      await api.patch(`/certificates/${id}/revoke`)
+      await Promise.all([reloadCertificates(), reloadAudit()])
+      setMessage("Сертификат отозван.")
+    } catch (err) {
+      setMessage(err instanceof ApiError ? err.message : "Не удалось отозвать сертификат")
+    } finally {
+      setBusyCertificate(null)
     }
   }
 
@@ -202,7 +244,7 @@ export function AdminPanel() {
               active={reportStatus === status}
               onClick={() => setReportStatus(status)}
             >
-              {status}
+              {reportStatusLabels[status]}
             </FilterButton>
           ))}
         </div>
@@ -220,7 +262,7 @@ export function AdminPanel() {
               <li key={report.id} className="border-b border-rule px-6 py-6 md:px-8">
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-12 md:col-span-7">
-                    <div className="mono-label text-accent">{report.status}</div>
+                    <div className="mono-label text-accent">{reportStatusLabels[report.status]}</div>
                     <h3 className="mt-2 font-display text-[22px] leading-[1.1] tracking-[-0.01em]">
                       {report.reason}
                     </h3>
@@ -240,7 +282,7 @@ export function AdminPanel() {
                         disabled={busyReport === report.id || report.status === status}
                         className="border border-rule px-3 py-2 text-[11px] uppercase tracking-[0.14em] hover:border-foreground disabled:opacity-40"
                       >
-                        {status}
+                        {reportStatusLabels[status]}
                       </button>
                     ))}
                   </div>
@@ -250,6 +292,96 @@ export function AdminPanel() {
                     Решение: {report.resolution}
                   </div>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="border-t border-rule" id="certificates">
+        <SectionHeader
+          number="05"
+          title="Сертификаты"
+          text="Публичная проверка сертификата и административный отзыв при ошибочной выдаче."
+        />
+        {certificatesError && <Alert text={certificatesError} />}
+        {certificatesLoading ? (
+          <Loading />
+        ) : (
+          <ul className="border-t border-rule">
+            {(certificates ?? []).map((cert) => (
+              <li
+                key={cert.id}
+                className="grid grid-cols-12 gap-4 border-b border-rule px-6 py-5 md:px-8"
+              >
+                <div className="col-span-12 md:col-span-5">
+                  <Link
+                    href={`/certificates/verify/${cert.verificationCode}`}
+                    className="font-display text-[20px] hover:text-accent"
+                  >
+                    {cert.verificationCode}
+                  </Link>
+                  <div className="mt-1 text-[13px] text-muted">
+                    {cert.user.email} · {cert.course.title}
+                  </div>
+                </div>
+                <div className="col-span-6 md:col-span-2 mono-label text-muted">{cert.status}</div>
+                <div className="col-span-6 md:col-span-3 text-right text-[13px] text-muted">
+                  {new Date(cert.issuedAt).toLocaleDateString("ru-RU")}
+                </div>
+                <div className="col-span-12 flex justify-start md:col-span-2 md:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => revokeCertificate(cert.id)}
+                    disabled={busyCertificate === cert.id || cert.status === "REVOKED"}
+                    className="border border-rule px-3 py-2 text-[11px] uppercase tracking-[0.14em] hover:border-foreground disabled:opacity-40"
+                  >
+                    Отозвать
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="border-t border-rule" id="audit">
+        <SectionHeader
+          number="06"
+          title="Audit log"
+          text="Журнал ключевых действий: записи на курсы, сдача заданий, тесты, сертификаты и модерация."
+        />
+        <div className="border-t border-rule px-6 py-5 md:px-8">
+          <input
+            value={auditAction}
+            onChange={(e) => setAuditAction(e.target.value)}
+            placeholder="Фильтр по action, например quiz или certificate"
+            className="w-full border border-rule bg-background px-4 py-3 text-[14px] outline-none focus:border-foreground"
+          />
+        </div>
+        {auditError && <Alert text={auditError} />}
+        {auditLoading ? (
+          <Loading />
+        ) : (
+          <ul className="border-t border-rule">
+            {(auditLogs ?? []).map((log) => (
+              <li
+                key={log.id}
+                className="grid grid-cols-12 gap-4 border-b border-rule px-6 py-5 text-[13px] md:px-8"
+              >
+                <div className="col-span-12 md:col-span-3">
+                  <div className="mono-label text-accent">{log.action}</div>
+                  <div className="mt-1 text-muted">{log.actorEmail ?? "system"}</div>
+                </div>
+                <div className="col-span-6 md:col-span-2 mono-label text-muted">
+                  {log.entityType}
+                </div>
+                <div className="col-span-6 md:col-span-3 break-all text-muted">
+                  {log.entityId ?? "—"}
+                </div>
+                <div className="col-span-12 md:col-span-4 md:text-right text-muted">
+                  {new Date(log.createdAt).toLocaleString("ru-RU")}
+                </div>
               </li>
             ))}
           </ul>

@@ -15,7 +15,7 @@ export function PopularCourses() {
   const courses = data ?? []
 
   return (
-    <section className="section-rule">
+    <section id="popular" className="section-rule">
       <div className="mx-auto max-w-[1440px] px-6 md:px-10">
         <div className="grid grid-cols-12 gap-x-6 gap-y-10 py-16 md:py-24">
           <div className="col-span-12 md:col-span-4">

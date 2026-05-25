@@ -25,6 +25,7 @@ export const env = {
   SMTP_PASS: process.env.SMTP_PASS ?? "",
   SMTP_FROM: process.env.SMTP_FROM ?? "MicroLearn <no-reply@microlearn.local>",
   CLIENT_URL: process.env.CLIENT_URL ?? "http://localhost:7865",
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "",
   // Дополнительные разрешённые origin'ы через запятую, напр.
   // "http://localhost:3001,http://192.168.10.6:3001"
   EXTRA_ORIGINS: process.env.EXTRA_ORIGINS ?? "",

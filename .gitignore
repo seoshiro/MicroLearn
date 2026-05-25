@@ -25,6 +25,8 @@ coverage/
 playwright-report/
 test-results/
 audit-shots/
+screenshots/
+cert-preview.pdf
 
 # TypeScript cache
 tsconfig.tsbuildinfo

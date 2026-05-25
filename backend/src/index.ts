@@ -22,6 +22,8 @@ import reviewRoutes from "./routes/reviews"
 import favoriteRoutes from "./routes/favorites"
 import planRoutes from "./routes/plans"
 import certificateRoutes from "./routes/certificates"
+import assignmentRoutes from "./routes/assignments"
+import quizRoutes from "./routes/quizzes"
 import notificationRoutes from "./routes/notifications"
 import dashboardRoutes from "./routes/dashboard"
 import adminRoutes from "./routes/admin"
@@ -82,6 +84,8 @@ app.use("/api/reviews", reviewRoutes)
 app.use("/api/favorites", favoriteRoutes)
 app.use("/api/plans", planRoutes)
 app.use("/api/certificates", certificateRoutes)
+app.use("/api/assignments", assignmentRoutes)
+app.use("/api/quizzes", quizRoutes)
 app.use("/api/notifications", notificationRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/admin", adminRoutes)

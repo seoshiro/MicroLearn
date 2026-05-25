@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/ml/dashboard/shell"
 import { TeacherStats } from "@/components/ml/teacher/stats"
 import { CoursesTable } from "@/components/ml/teacher/courses-table"
 import { TeacherActivity } from "@/components/ml/teacher/activity"
+import { TeacherStudentAnalytics } from "@/components/ml/teacher/student-analytics"
 
 export const metadata = {
   title: "Кабинет преподавателя · MicroLearn",
@@ -21,13 +22,12 @@ export default function TeacherDashboardPage() {
       <DashboardShell
         edition="Кабинет"
         role="Преподаватель"
-        title="Анна Ковалёва"
-        subtitle="Продуктовый дизайн · 2 847 студентов"
         nav={teacherNav}
       >
         <TeacherStats />
         <CoursesTable />
         <TeacherActivity />
+        <TeacherStudentAnalytics />
       </DashboardShell>
     </PageShell>
   )

@@ -47,6 +47,22 @@ enum NotificationType {
   SYSTEM
 }
 
+enum AssignmentStatus {
+  SUBMITTED
+  REVIEWED
+  NEEDS_REVISION
+}
+
+enum QuizQuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+}
+
+enum CertificateStatus {
+  VALID
+  REVOKED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -64,15 +80,21 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  taughtCourses Course[]         @relation("TeacherCourses")
-  enrollments   Enrollment[]
-  reviews       Review[]
-  favorites     Favorite[]
-  progress      LessonProgress[]
-  certificates  Certificate[]
-  notifications Notification[]
-  reports       ModerationReport[] @relation("Reporter")
-  assignedReports ModerationReport[] @relation("AssignedModerator")
+  taughtCourses         Course[]               @relation("TeacherCourses")
+  enrollments           Enrollment[]
+  reviews               Review[]
+  favorites             Favorite[]
+  progress              LessonProgress[]
+  certificates          Certificate[]
+  reviewedCertificates  Certificate[]          @relation("CertificateRevoker")
+  notifications         Notification[]
+  reports               ModerationReport[]     @relation("Reporter")
+  assignedReports       ModerationReport[]     @relation("AssignedModerator")
+  assignmentSubmissions AssignmentSubmission[] @relation("SubmissionAuthor")
+  reviewedSubmissions   AssignmentSubmission[] @relation("SubmissionReviewer")
+  quizAttempts          QuizAttempt[]
+  auditLogs             AuditLog[]
+  planPayments          PlanPayment[]
 }
 
 model Course {
@@ -101,16 +123,16 @@ model Course {
 }
 
 model ModerationReport {
-  id          String       @id @default(cuid())
-  reason      String
-  details     String?
-  status      ReportStatus @default(OPEN)
-  reporterId  String?
-  courseId    String?
+  id           String       @id @default(cuid())
+  reason       String
+  details      String?
+  status       ReportStatus @default(OPEN)
+  reporterId   String?
+  courseId     String?
   assignedToId String?
-  resolution  String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  resolution   String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   reporter   User?   @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull)
   course     Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -133,17 +155,99 @@ model Module {
 }
 
 model Lesson {
-  id       String           @id @default(cuid())
-  title    String
-  type     LessonType
-  content  String?
-  order    Int
-  duration Int?
-  moduleId String
-  module   Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  progress LessonProgress[]
+  id         String           @id @default(cuid())
+  title      String
+  type       LessonType
+  content    String?
+  order      Int
+  duration   Int?
+  moduleId   String
+  module     Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress   LessonProgress[]
+  assignment Assignment?
+  quiz       Quiz?
 
   @@index([moduleId])
+}
+
+model Assignment {
+  id           String   @id @default(cuid())
+  lessonId     String   @unique
+  title        String
+  instructions String
+  maxScore     Int      @default(100)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lesson      Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+}
+
+model AssignmentSubmission {
+  id           String           @id @default(cuid())
+  assignmentId String
+  userId       String
+  reviewerId   String?
+  content      String
+  status       AssignmentStatus @default(SUBMITTED)
+  score        Int?
+  feedback     String?
+  submittedAt  DateTime         @default(now())
+  reviewedAt   DateTime?
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user       User       @relation("SubmissionAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer   User?      @relation("SubmissionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@unique([assignmentId, userId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Quiz {
+  id           String   @id @default(cuid())
+  lessonId     String   @unique
+  title        String
+  passingScore Int      @default(70)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lesson    Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id             String           @id @default(cuid())
+  quizId         String
+  type           QuizQuestionType
+  text           String
+  options        Json
+  correctAnswers Json
+  points         Int              @default(1)
+  order          Int
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  userId    String
+  answers   Json
+  score     Int
+  maxScore  Int
+  passed    Boolean
+  createdAt DateTime @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+  @@index([userId])
 }
 
 model Enrollment {
@@ -197,15 +301,22 @@ model Favorite {
 }
 
 model Certificate {
-  id       String   @id @default(cuid())
-  userId   String
-  courseId String
-  fileUrl  String
-  issuedAt DateTime @default(now())
-  user     User     @relation(fields: [userId], references: [id])
-  course   Course   @relation(fields: [courseId], references: [id])
+  id               String            @id @default(cuid())
+  userId           String
+  courseId         String
+  fileUrl          String
+  verificationCode String            @unique @default(cuid())
+  status           CertificateStatus @default(VALID)
+  issuedAt         DateTime          @default(now())
+  revokedAt        DateTime?
+  revokedById      String?
+  user             User              @relation(fields: [userId], references: [id])
+  course           Course            @relation(fields: [courseId], references: [id])
+  revokedBy        User?             @relation("CertificateRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
 
   @@unique([userId, courseId])
+  @@index([verificationCode])
+  @@index([status])
 }
 
 model Notification {
@@ -219,4 +330,41 @@ model Notification {
   user      User             @relation(fields: [userId], references: [id])
 
   @@index([userId, read])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+model PlanPayment {
+  id              String    @id @default(cuid())
+  userId          String
+  plan            Plan
+  amount          Int
+  currency        String    @default("usd")
+  billingPeriod   String    @default("month")
+  stripePaymentId String    @unique @map("stripe_payment_id")
+  status          String
+  createdAt       DateTime  @default(now())
+  confirmedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }

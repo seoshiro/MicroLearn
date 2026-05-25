@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js"
+import { loadStripe } from "@stripe/stripe-js"
 import { formatKZT } from "@/lib/format"
 import { usePlans, type Plan } from "@/lib/hooks"
 import { useAuth } from "@/lib/auth-context"
-import { api, ApiError } from "@/lib/api"
+import { api } from "@/lib/api"
 
 type TierUi = {
   planId: Plan
@@ -18,6 +20,18 @@ type TierUi = {
   cta: string
   featured?: boolean
 }
+
+type CheckoutState = {
+  plan: Plan
+  clientSecret: string
+  paymentIntentId: string
+  amount: number
+  currency: string
+  billingPeriod: "month" | "year"
+}
+
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ""
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
 
 // Таглайны и копирайт-надстройки к планам, пришедшим из API.
 const UI: Record<
@@ -69,6 +83,7 @@ export function PricingTiers() {
   const [annual, setAnnual] = useState(false)
   const [busy, setBusy] = useState<Plan | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [checkout, setCheckout] = useState<CheckoutState | null>(null)
 
   // Собираем финальный список уровней: UI-описания + фичи из API (если прилетели).
   const tiers: TierUi[] = (["FREE", "PRO", "PREMIUM"] as Plan[]).map((id) => {
@@ -89,10 +104,30 @@ export function PricingTiers() {
     }
     setBusy(plan)
     try {
-      await api.post("/plans/subscribe", { plan })
-      await refresh()
+      if (plan !== "FREE" && !stripePromise) {
+        throw new Error("Не настроен NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY")
+      }
+      const res = await api.post<{
+        data:
+          | { requiresPayment: false; user: { id: string; plan: Plan } }
+          | (CheckoutState & { requiresPayment: true })
+      }>("/plans/subscribe", { plan, billingPeriod: annual ? "year" : "month" })
+
+      if (res.data.requiresPayment) {
+        setCheckout({
+          plan: res.data.plan,
+          clientSecret: res.data.clientSecret,
+          paymentIntentId: res.data.paymentIntentId,
+          amount: res.data.amount,
+          currency: res.data.currency,
+          billingPeriod: res.data.billingPeriod,
+        })
+      } else {
+        setCheckout(null)
+        await refresh()
+      }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Не удалось оформить подписку")
+      setError(e instanceof Error ? e.message : "Не удалось оформить подписку")
     } finally {
       setBusy(null)
     }
@@ -240,6 +275,98 @@ export function PricingTiers() {
           )
         })}
       </div>
+
+      {checkout && stripePromise && (
+        <div className="border-t border-rule px-4 py-10 md:px-8 md:py-14">
+          <div className="mx-auto max-w-[640px] border border-rule bg-panel p-6 md:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="mono-label text-muted">Stripe test mode</div>
+                <h3 className="mt-2 font-display text-[26px] leading-tight md:text-[32px]">
+                  Оплата подписки · {tiers.find((t) => t.planId === checkout.plan)?.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCheckout(null)}
+                className="h-9 border border-rule px-3 text-[11px] uppercase tracking-[0.14em] hover:border-foreground"
+                aria-label="Закрыть форму оплаты"
+              >
+                Отмена
+              </button>
+            </div>
+            <p className="mt-3 text-[13px] leading-[1.55] text-muted">
+              Тестовая карта <span className="tnum">4242 4242 4242 4242</span>, любая будущая дата,
+              любой CVC и индекс. Деньги не списываются.
+            </p>
+            <Elements
+              key={checkout.clientSecret}
+              stripe={stripePromise}
+              options={{ clientSecret: checkout.clientSecret }}
+            >
+              <StripePlanCheckout
+                paymentIntentId={checkout.paymentIntentId}
+                onPaid={async () => {
+                  setCheckout(null)
+                  await refresh()
+                }}
+                onError={setError}
+              />
+            </Elements>
+          </div>
+        </div>
+      )}
     </section>
+  )
+}
+
+function StripePlanCheckout({
+  paymentIntentId,
+  onPaid,
+  onError,
+}: {
+  paymentIntentId: string
+  onPaid: () => Promise<void>
+  onError: (message: string | null) => void
+}) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [busy, setBusy] = useState(false)
+
+  async function pay() {
+    if (!stripe || !elements) return
+    setBusy(true)
+    onError(null)
+    try {
+      const result = await stripe.confirmPayment({
+        elements,
+        redirect: "if_required",
+      })
+      if (result.error) {
+        onError(result.error.message ?? "Stripe payment failed")
+        return
+      }
+      const confirmedId = result.paymentIntent?.id ?? paymentIntentId
+      await api.post("/plans/confirm", { paymentIntentId: confirmedId })
+      await onPaid()
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Не удалось подтвердить оплату")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-4">
+      <PaymentElement />
+      <button
+        type="button"
+        onClick={pay}
+        disabled={!stripe || !elements || busy}
+        className="mt-4 h-10 w-full border border-foreground bg-foreground px-4 text-[11px] uppercase tracking-[0.14em] text-background hover:border-accent hover:bg-accent disabled:opacity-50"
+      >
+        {busy ? "Проверяем оплату..." : "Оплатить в test mode"}
+      </button>
+    </div>
   )
 }

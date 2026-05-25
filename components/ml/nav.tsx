@@ -68,9 +68,6 @@ export function Nav() {
           <span className="font-display text-[20px] leading-none tracking-[-0.02em] text-foreground lg:text-[22px]">
             MicroLearn
           </span>
-          <span className="hidden text-[10px] uppercase tracking-[0.22em] text-muted-foreground tnum lg:inline">
-            № 04
-          </span>
         </Link>
 
         {/* Десктопная навигация */}
@@ -83,10 +80,12 @@ export function Nav() {
                   <Link
                     href={i.href}
                     className={[
-                      "transition-colors hover:text-accent",
+                      "relative transition-colors hover:text-accent",
                       active
-                        ? "text-foreground underline underline-offset-[6px]"
+                        ? "text-foreground"
                         : "text-foreground/80",
+                      "after:absolute after:bottom-[-4px] after:left-0 after:h-[1.5px] after:w-full after:bg-current after:transition-transform after:duration-200 after:ease-out",
+                      active ? "after:scale-x-100" : "after:scale-x-0 hover:after:scale-x-100",
                     ].join(" ")}
                   >
                     {i.label}
@@ -232,11 +231,14 @@ export function Nav() {
                       <Link
                         href={i.href}
                         className={[
-                          "flex items-center justify-between gap-4 py-4 font-display text-[22px] tracking-[-0.01em] transition-colors",
+                          "group flex items-center justify-between gap-4 py-4 font-display text-[22px] tracking-[-0.01em] transition-colors",
                           active ? "text-accent" : "text-foreground hover:text-accent",
                         ].join(" ")}
                       >
-                        <span>{i.label}</span>
+                        <span className="relative">
+                          {i.label}
+                          <span className="absolute bottom-[-2px] left-0 h-[2px] w-full origin-left scale-x-0 bg-current transition-transform duration-200 ease-out group-hover:scale-x-100" />
+                        </span>
                         <span aria-hidden className="text-[16px] text-muted-foreground">
                           →
                         </span>

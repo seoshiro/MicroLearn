@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma"
 import { Plan } from "@prisma/client"
 import { issueCertificate } from "./certificate.service"
 import { emitToUser } from "../socket"
+import { HttpError } from "../lib/httpError"
 
 export async function courseProgressPercent(userId: string, courseId: string): Promise<number> {
   const modules = await prisma.module.findMany({
@@ -57,9 +58,38 @@ export async function courseProgressDetailed(userId: string, courseId: string) {
 export async function markLessonComplete(userId: string, lessonId: string) {
   const lesson = await prisma.lesson.findUniqueOrThrow({
     where: { id: lessonId },
-    include: { module: { select: { courseId: true } } },
+    include: {
+      module: { select: { courseId: true } },
+      assignment: { select: { id: true } },
+      quiz: { select: { id: true } },
+    },
   })
   const courseId = lesson.module.courseId
+
+  // Гейт: если у урока есть задание — должна быть отправлена работа.
+  if (lesson.assignment) {
+    const submission = await prisma.assignmentSubmission.findFirst({
+      where: { assignmentId: lesson.assignment.id, userId },
+      select: { id: true },
+    })
+    if (!submission) {
+      throw new HttpError(400, "Сначала отправьте ответ на задание этого урока.")
+    }
+  }
+
+  // Гейт: если у урока есть тест — должна быть успешная попытка (passed=true).
+  if (lesson.quiz) {
+    const passed = await prisma.quizAttempt.findFirst({
+      where: { quizId: lesson.quiz.id, userId, passed: true },
+      select: { id: true },
+    })
+    if (!passed) {
+      throw new HttpError(
+        400,
+        "Сначала пройдите тест этого урока на проходной балл.",
+      )
+    }
+  }
 
   await prisma.lessonProgress.upsert({
     where: { userId_lessonId: { userId, lessonId } },

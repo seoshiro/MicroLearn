@@ -19,7 +19,7 @@ const PAGES = [
     keywords: "преподаватель курс создать автор",
   },
   { title: "О журнале", href: "/about", keywords: "журнал microlearn редакция обучение" },
-  { title: "Контакты", href: "/contacts", keywords: "контакты адрес email алматы санкт-петербург" },
+  { title: "Контакты", href: "/contacts", keywords: "контакты адрес email астана тараз" },
 ]
 
 export function SearchResults() {

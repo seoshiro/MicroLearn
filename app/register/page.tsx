@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function RegisterPage() {
   return (
-    <PageShell section="Регистрация · Санкт-Петербург — Алматы">
+    <PageShell section="Регистрация · Тараз — Астана">
       <RegisterForm />
     </PageShell>
   )

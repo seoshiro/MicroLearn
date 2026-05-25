@@ -19,13 +19,7 @@ const studentNav = [
 export default function StudentDashboardPage() {
   return (
     <PageShell>
-      <DashboardShell
-        edition="Кабинет"
-        role="Студент"
-        title="Алия Жумагалиева"
-        subtitle="Алматы · 3 курса в процессе, серия 21 день"
-        nav={studentNav}
-      >
+      <DashboardShell edition="Кабинет" role="Студент" nav={studentNav}>
         <StudentStats />
         <ActiveCourses />
         <Schedule />

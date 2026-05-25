@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Eye, PlayCircle, Star } from "lucide-react"
+import { Eye, PlayCircle, Star, Trash2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useCourses } from "@/lib/hooks"
 import { api, ApiError } from "@/lib/api"
@@ -178,10 +178,11 @@ export function CoursesTable() {
                       <button
                         onClick={() => removeCourse(c.id)}
                         disabled={busyId === c.id}
-                        aria-label="Удалить"
-                        className="inline-flex h-8 items-center px-2 text-[11px] uppercase tracking-[0.14em] text-muted-foreground hover:text-accent disabled:opacity-50"
+                        aria-label={`Удалить курс ${c.title}`}
+                        title="Удалить"
+                        className="inline-flex h-8 w-8 items-center justify-center border border-border text-muted-foreground hover:border-accent hover:text-accent disabled:opacity-50"
                       >
-                        del
+                        <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
                     </div>
                   </td>
