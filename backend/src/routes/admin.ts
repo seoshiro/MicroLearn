@@ -5,6 +5,8 @@ import { prisma } from "../lib/prisma"
 import { asyncHandler } from "../lib/asyncHandler"
 import { validate } from "../middleware/validate"
 import { verifyAccess, requireRole } from "../middleware/auth"
+import { writeAuditLog } from "../services/audit-log.service"
+import { emitToUser } from "../socket"
 
 const router = Router()
 
@@ -148,6 +150,12 @@ const reportsQuery = z.object({
   status: z.nativeEnum(ReportStatus).optional(),
 })
 
+const reportInclude = {
+  reporter: { select: { id: true, name: true, email: true, role: true } },
+  assignedTo: { select: { id: true, name: true, email: true } },
+  course: { select: { id: true, title: true, status: true } },
+} as const
+
 router.get(
   "/reports",
   validate(reportsQuery, "query"),
@@ -156,13 +164,24 @@ router.get(
     const reports = await prisma.moderationReport.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: "desc" },
-      include: {
-        reporter: { select: { id: true, name: true, email: true } },
-        assignedTo: { select: { id: true, name: true, email: true } },
-        course: { select: { id: true, title: true, status: true } },
-      },
+      include: reportInclude,
     })
     res.json({ data: reports })
+  }),
+)
+
+router.get(
+  "/reports/:id",
+  asyncHandler(async (req: Request, res: Response) => {
+    const report = await prisma.moderationReport.findUnique({
+      where: { id: req.params.id },
+      include: reportInclude,
+    })
+    if (!report) {
+      res.status(404).json({ error: "Report not found" })
+      return
+    }
+    res.json({ data: report })
   }),
 )
 
@@ -200,27 +219,73 @@ router.get(
 )
 
 const updateReportSchema = z.object({
-  status: z.nativeEnum(ReportStatus),
-  resolution: z.string().max(1000).optional(),
+  status: z.nativeEnum(ReportStatus).optional(),
+  resolution: z.string().max(1000).nullable().optional(),
 })
 
 router.patch(
   "/reports/:id",
   validate(updateReportSchema),
   asyncHandler(async (req: Request, res: Response) => {
+    const current = await prisma.moderationReport.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true, reporterId: true, resolution: true },
+    })
+    if (!current) {
+      res.status(404).json({ error: "Report not found" })
+      return
+    }
+
+    const nextStatus = req.body.status ?? current.status
+    const nextResolution =
+      req.body.resolution === undefined ? current.resolution : req.body.resolution?.trim() || null
+
     const report = await prisma.moderationReport.update({
       where: { id: req.params.id },
       data: {
-        status: req.body.status,
-        resolution: req.body.resolution,
+        status: nextStatus,
+        resolution: nextResolution,
         assignedToId: req.user!.id,
       },
-      include: {
-        reporter: { select: { id: true, name: true, email: true } },
-        assignedTo: { select: { id: true, name: true, email: true } },
-        course: { select: { id: true, title: true, status: true } },
+      include: reportInclude,
+    })
+
+    const statusChanged = current.status !== report.status
+    const resolutionChanged = current.resolution !== report.resolution
+
+    if (current.reporterId && (statusChanged || resolutionChanged)) {
+      const notif = await prisma.notification.create({
+        data: {
+          userId: current.reporterId,
+          type: "SYSTEM",
+          title: "Обращение обновлено",
+          body: report.resolution
+            ? `Статус: ${report.status}. Ответ администратора: ${report.resolution}`
+            : `Статус обращения изменён на ${report.status}.`,
+        },
+      })
+      emitToUser(current.reporterId, "notification:new", notif)
+    }
+
+    await writeAuditLog({
+      req,
+      action:
+        report.status === ReportStatus.RESOLVED
+          ? "report.resolved"
+          : report.status === ReportStatus.DISMISSED
+            ? "report.dismissed"
+            : resolutionChanged
+              ? "report.responded"
+              : "report.status_changed",
+      entityType: "ModerationReport",
+      entityId: report.id,
+      metadata: {
+        previousStatus: current.status,
+        status: report.status,
+        resolutionChanged,
       },
     })
+
     res.json({ data: report })
   }),
 )

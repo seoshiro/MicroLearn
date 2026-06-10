@@ -17,7 +17,7 @@ import {
 const reportStatuses: ReportStatus[] = ["OPEN", "REVIEWING", "RESOLVED", "DISMISSED"]
 const reportStatusLabels: Record<ReportStatus, string> = {
   OPEN: "ОТКРЫТО",
-  REVIEWING: "НА ПРОВЕРКЕ",
+  REVIEWING: "В РАБОТЕ",
   RESOLVED: "РЕШЕНО",
   DISMISSED: "ОТКЛОНЕНО",
 }
@@ -31,6 +31,7 @@ export function AdminPanel() {
   const [busyReport, setBusyReport] = useState<string | null>(null)
   const [busyCertificate, setBusyCertificate] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [reportResponses, setReportResponses] = useState<Record<string, string>>({})
 
   const userQs = useMemo(() => {
     const qs = new URLSearchParams()
@@ -76,18 +77,20 @@ export function AdminPanel() {
     reload: reloadCertificates,
   } = useAdminCertificates()
 
-  async function updateReport(id: string, status: ReportStatus) {
+  function responseText(reportId: string, fallback?: string | null) {
+    return reportResponses[reportId] ?? fallback ?? ""
+  }
+
+  async function updateReport(id: string, status: ReportStatus, fallback?: string | null) {
     setBusyReport(id)
     setMessage(null)
     try {
+      const resolution = responseText(id, fallback).trim()
       await api.patch(`/admin/reports/${id}`, {
         status,
-        resolution:
-          status === "RESOLVED"
-            ? "Проверено модератором. Нарушений, блокирующих публикацию, не найдено."
-            : undefined,
+        resolution: resolution || null,
       })
-      await Promise.all([reloadReports(), reloadOverview()])
+      await Promise.all([reloadReports(), reloadOverview(), reloadAudit()])
       setMessage("Статус жалобы обновлен.")
     } catch (err) {
       setMessage(err instanceof ApiError ? err.message : "Не удалось обновить жалобу")
@@ -262,7 +265,9 @@ export function AdminPanel() {
               <li key={report.id} className="border-b border-rule px-6 py-6 md:px-8">
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-12 md:col-span-7">
-                    <div className="mono-label text-accent">{reportStatusLabels[report.status]}</div>
+                    <div className="mono-label text-accent">
+                      {reportStatusLabels[report.status]}
+                    </div>
                     <h3 className="mt-2 font-display text-[22px] leading-[1.1] tracking-[-0.01em]">
                       {report.reason}
                     </h3>
@@ -271,20 +276,43 @@ export function AdminPanel() {
                     </p>
                     <div className="mt-3 text-[12px] text-muted">
                       {report.reporter?.email ?? "аноним"} ·{" "}
+                      {report.reporter?.role ?? "роль не указана"} ·{" "}
                       {report.course?.title ?? "курс не указан"}
                     </div>
+                    <div className="mt-1 text-[12px] text-muted">
+                      создано {new Date(report.createdAt).toLocaleString("ru-RU")} · обновлено{" "}
+                      {new Date(report.updatedAt).toLocaleString("ru-RU")}
+                    </div>
                   </div>
-                  <div className="col-span-12 flex flex-wrap gap-2 md:col-span-5 md:justify-end md:self-start">
-                    {reportStatuses.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => updateReport(report.id, status)}
-                        disabled={busyReport === report.id || report.status === status}
-                        className="border border-rule px-3 py-2 text-[11px] uppercase tracking-[0.14em] hover:border-foreground disabled:opacity-40"
-                      >
-                        {reportStatusLabels[status]}
-                      </button>
-                    ))}
+                  <div className="col-span-12 space-y-3 md:col-span-5">
+                    <label className="block text-[12px] text-muted">
+                      Ответ пользователю
+                      <textarea
+                        value={responseText(report.id, report.resolution)}
+                        onChange={(event) =>
+                          setReportResponses((current) => ({
+                            ...current,
+                            [report.id]: event.target.value,
+                          }))
+                        }
+                        rows={4}
+                        className="mt-2 w-full resize-none border border-rule bg-background p-3 text-[13px] text-foreground outline-none focus:border-foreground"
+                        placeholder="Коротко опишите решение или причину отклонения."
+                      />
+                    </label>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {reportStatuses.map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => updateReport(report.id, status, report.resolution)}
+                          disabled={busyReport === report.id}
+                          className="border border-rule px-3 py-2 text-[11px] uppercase tracking-[0.14em] hover:border-foreground disabled:opacity-40"
+                        >
+                          {reportStatusLabels[status]}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 {report.resolution && (

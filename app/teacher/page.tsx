@@ -5,6 +5,7 @@ import { CoursesTable } from "@/components/ml/teacher/courses-table"
 import { TeacherActivity } from "@/components/ml/teacher/activity"
 import { TeacherStudentAnalytics } from "@/components/ml/teacher/student-analytics"
 import { TeacherAdaptiveInsights } from "@/components/ml/teacher/adaptive-insights"
+import { ReportsCenter } from "@/components/ml/support/reports-center"
 
 export const metadata = {
   title: "Кабинет преподавателя · MicroLearn",
@@ -26,6 +27,7 @@ export default function TeacherDashboardPage() {
         <TeacherActivity />
         <TeacherStudentAnalytics />
         <TeacherAdaptiveInsights />
+        <ReportsCenter />
       </DashboardShell>
     </PageShell>
   )

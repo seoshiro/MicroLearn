@@ -297,9 +297,13 @@ export type AdminReport = {
   resolution?: string | null
   createdAt: string
   updatedAt: string
-  reporter?: { id: string; name: string; email: string } | null
+  reporter?: { id: string; name: string; email: string; role?: AuthRole } | null
   assignedTo?: { id: string; name: string; email: string } | null
   course?: { id: string; title: string; status: string } | null
+}
+
+export type UserReport = AdminReport & {
+  reporter?: { id: string; name: string; email: string; role: AuthRole } | null
 }
 
 export type AdminAuditLog = {
@@ -399,6 +403,7 @@ export const useAdminAuditLogs = (qs = "") =>
   useProtectedFetch<AdminAuditLog[]>(`/admin/audit-logs${qs}`)
 export const useAdminCertificates = () =>
   useProtectedFetch<AdminCertificate[]>("/admin/certificates")
+export const useMyReports = () => useProtectedFetch<UserReport[]>("/reports/my")
 export const useMyEnrollments = () => useProtectedFetch<EnrollmentItem[]>("/enrollments/my")
 export const useMyFavorites = () => useProtectedFetch<FavoriteItem[]>("/favorites/my")
 export const useMyCertificates = () => useProtectedFetch<CertificateItem[]>("/certificates/my")

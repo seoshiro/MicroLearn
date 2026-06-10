@@ -5,6 +5,7 @@ import { ActiveCourses } from "@/components/ml/student/active-courses"
 import { Schedule } from "@/components/ml/student/schedule"
 import { StudentLibrary } from "@/components/ml/student/library"
 import { AdaptiveDailyChallenge } from "@/components/ml/student/adaptive-daily-challenge"
+import { ReportsCenter } from "@/components/ml/support/reports-center"
 
 export const metadata = {
   title: "Кабинет студента · MicroLearn",
@@ -27,6 +28,7 @@ export default function StudentDashboardPage() {
         <ActiveCourses />
         <Schedule />
         <StudentLibrary />
+        <ReportsCenter />
       </DashboardShell>
     </PageShell>
   )

@@ -25,6 +25,7 @@ import certificateRoutes from "./routes/certificates"
 import assignmentRoutes from "./routes/assignments"
 import quizRoutes from "./routes/quizzes"
 import notificationRoutes from "./routes/notifications"
+import reportRoutes from "./routes/reports"
 import dashboardRoutes from "./routes/dashboard"
 import adminRoutes from "./routes/admin"
 import adaptiveRoutes, { teacherAdaptiveRouter } from "./routes/adaptive"
@@ -88,6 +89,7 @@ app.use("/api/certificates", certificateRoutes)
 app.use("/api/assignments", assignmentRoutes)
 app.use("/api/quizzes", quizRoutes)
 app.use("/api/notifications", notificationRoutes)
+app.use("/api/reports", reportRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/admin", adminRoutes)
 app.use("/api/adaptive", adaptiveRoutes)

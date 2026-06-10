@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/ml/dashboard/shell"
 import { CoursesTable } from "@/components/ml/teacher/courses-table"
 import { CourseBuilder } from "@/components/ml/teacher/course-builder"
 import { TeacherAdaptiveInsights } from "@/components/ml/teacher/adaptive-insights"
+import { ReportsCenter } from "@/components/ml/support/reports-center"
 
 export const metadata = {
   title: "Мои курсы · MicroLearn",
@@ -28,6 +29,7 @@ export default function TeacherCoursesPage() {
         <CoursesTable />
         <CourseBuilder />
         <TeacherAdaptiveInsights />
+        <ReportsCenter />
       </DashboardShell>
     </PageShell>
   )
