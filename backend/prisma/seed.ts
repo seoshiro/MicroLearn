@@ -9,6 +9,7 @@ import {
   AssignmentStatus,
   QuizQuestionType,
   CertificateStatus,
+  AdaptiveReviewStatus,
 } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
@@ -90,12 +91,28 @@ function quizLesson(courseTitle: string, moduleTitle: string): string {
   ].join("\n\n")
 }
 
+function adaptiveTopics(courseTitle: string): string[] {
+  if (courseTitle.includes("Next.js")) {
+    return ["JavaScript Basics", "React Components", "React Hooks", "Async/Await"]
+  }
+  if (courseTitle.includes("TypeScript")) {
+    return ["TypeScript Types", "Async/Await", "JavaScript Basics", "React Hooks"]
+  }
+  if (courseTitle.includes("Figma") || courseTitle.includes("UI")) {
+    return ["CSS Layout", "React Components", "JavaScript Basics", "TypeScript Types"]
+  }
+  return ["JavaScript Basics", "CSS Layout", "Async/Await", "React Components"]
+}
+
 async function main() {
   console.log("Seeding MicroLearn database...")
 
   // Clean up (order matters due to FK)
   await prisma.auditLog.deleteMany()
   await prisma.planPayment.deleteMany()
+  await prisma.adaptiveReview.deleteMany()
+  await prisma.studentWeakTopic.deleteMany()
+  await prisma.microlearningCard.deleteMany()
   await prisma.notification.deleteMany()
   await prisma.moderationReport.deleteMany()
   await prisma.quizAttempt.deleteMany()
@@ -305,6 +322,8 @@ async function main() {
   const quizLessons = lessons.filter((lesson) => lesson.type === LessonType.QUIZ)
   const quizzes = []
   for (const lesson of quizLessons) {
+    const course = courses.find((item) => item.id === lesson.module.courseId)
+    const topics = adaptiveTopics(course?.title ?? "")
     const quiz = await prisma.quiz.create({
       data: {
         lessonId: lesson.id,
@@ -315,6 +334,7 @@ async function main() {
             {
               type: QuizQuestionType.SINGLE_CHOICE,
               text: "Что важнее всего после короткого практического урока?",
+              topic: topics[0],
               options: [
                 "Закрыть вкладку",
                 "Зафиксировать вывод и следующий шаг",
@@ -327,6 +347,7 @@ async function main() {
             {
               type: QuizQuestionType.MULTIPLE_CHOICE,
               text: "Какие действия помогают закрепить материал?",
+              topic: topics[1],
               options: ["Повторить пример", "Записать вопрос", "Игнорировать чеклист"],
               correctAnswers: ["Повторить пример", "Записать вопрос"],
               points: 2,
@@ -338,6 +359,124 @@ async function main() {
       include: { questions: true },
     })
     quizzes.push(quiz)
+  }
+
+  const cardTemplates: Record<string, { front: string; back: string; hint?: string }[]> = {
+    "JavaScript Basics": [
+      {
+        front: "Что делает `const` в JavaScript?",
+        back: "`const` запрещает переназначить переменную, но объект внутри всё ещё может изменяться.",
+        hint: "Подумайте о разнице между ссылкой и содержимым.",
+      },
+      {
+        front: "Чем отличается `===` от `==`?",
+        back: "`===` сравнивает без приведения типов, поэтому результат предсказуемее.",
+      },
+      {
+        front: "Что возвращает функция без `return`?",
+        back: "Она возвращает `undefined`.",
+      },
+    ],
+    "React Components": [
+      {
+        front: "Что такое React component?",
+        back: "Это функция или класс, который возвращает UI и может получать данные через props.",
+      },
+      {
+        front: "Зачем компонентам props?",
+        back: "Props передают входные данные от родителя к дочернему компоненту.",
+      },
+      {
+        front: "Почему компонент лучше держать маленьким?",
+        back: "Маленький компонент проще читать, тестировать и переиспользовать.",
+      },
+    ],
+    "React Hooks": [
+      {
+        front: "Для чего нужен `useEffect`?",
+        back: "`useEffect` запускает побочные эффекты после рендера: загрузку данных, подписки, синхронизацию.",
+        hint: "Это не место для вычисления обычных значений.",
+      },
+      {
+        front: "Почему hooks нельзя вызывать внутри условий?",
+        back: "React должен видеть одинаковый порядок вызовов hooks при каждом рендере.",
+      },
+      {
+        front: "Когда нужен dependency array в `useEffect`?",
+        back: "Он показывает, при изменении каких значений эффект должен запускаться заново.",
+      },
+    ],
+    "TypeScript Types": [
+      {
+        front: "Что делает union type?",
+        back: "Union разрешает значению быть одним из нескольких типов, например `string | number`.",
+      },
+      {
+        front: "Зачем нужен type narrowing?",
+        back: "Narrowing сужает тип после проверки и помогает безопасно работать со значением.",
+      },
+      {
+        front: "Чем interface полезен для API-модели?",
+        back: "Он фиксирует форму объекта и делает контракт между backend и frontend явным.",
+      },
+    ],
+    "CSS Layout": [
+      {
+        front: "Когда удобнее использовать CSS Grid?",
+        back: "Grid хорошо подходит для двумерных сеток: строки и колонки одновременно.",
+      },
+      {
+        front: "Когда удобнее использовать Flexbox?",
+        back: "Flexbox удобен для одномерного расположения элементов в строке или колонке.",
+      },
+      {
+        front: "Что делает `gap`?",
+        back: "`gap` задаёт расстояние между элементами без лишних margin-хаков.",
+      },
+    ],
+    "Async/Await": [
+      {
+        front: "Что делает `await`?",
+        back: "`await` ждёт завершения Promise и возвращает его результат внутри async-функции.",
+      },
+      {
+        front: "Что вернёт async-функция?",
+        back: "Async-функция всегда возвращает Promise.",
+      },
+      {
+        front: "Где ловить ошибку от `await`?",
+        back: "Обычно через `try/catch`, чтобы обработать rejected Promise.",
+      },
+    ],
+  }
+
+  const firstQuizLessonByCourse = new Map<string, (typeof lessons)[number]>()
+  for (const lesson of lessons) {
+    if (lesson.type === LessonType.QUIZ && !firstQuizLessonByCourse.has(lesson.module.courseId)) {
+      firstQuizLessonByCourse.set(lesson.module.courseId, lesson)
+    }
+  }
+
+  const cardsByCourseTopic = new Map<string, { id: string; topic: string; courseId: string }[]>()
+  for (const course of courses) {
+    const lesson = firstQuizLessonByCourse.get(course.id) ?? null
+    const topics = adaptiveTopics(course.title)
+    for (const topic of topics) {
+      const templates = cardTemplates[topic] ?? cardTemplates["JavaScript Basics"]
+      const created = await prisma.microlearningCard.createManyAndReturn({
+        data: templates.slice(0, 3).map((card) => ({
+          courseId: course.id,
+          lessonId: lesson?.id ?? null,
+          topic,
+          front: card.front,
+          back: card.back,
+          hint: card.hint,
+          createdById: course.teacherId,
+        })),
+        select: { id: true, topic: true, courseId: true },
+      })
+      cardsByCourseTopic.set(`${course.id}:${topic}`, created)
+    }
   }
 
   const firstQuiz = quizzes[0]
@@ -361,6 +500,40 @@ async function main() {
         passed: true,
       },
     })
+
+    const demoCourseId = lessons.find((lesson) => lesson.id === firstQuiz.lessonId)?.module.courseId
+    const demoTopics = demoCourseId ? ["CSS Layout", "TypeScript Types"] : []
+    for (const [index, topic] of demoTopics.entries()) {
+      await prisma.studentWeakTopic.create({
+        data: {
+          studentId: students[0].id,
+          courseId: demoCourseId!,
+          topic,
+          attemptsCount: index === 0 ? 5 : 3,
+          mistakesCount: index === 0 ? 3 : 2,
+          lastMistakeAt: new Date(),
+          strengthScore: index === 0 ? 40 : 34,
+        },
+      })
+      const dueCards = (cardsByCourseTopic.get(`${demoCourseId}:${topic}`) ?? []).slice(
+        0,
+        index === 0 ? 3 : 2,
+      )
+      for (const card of dueCards) {
+        await prisma.adaptiveReview.create({
+          data: {
+            studentId: students[0].id,
+            courseId: demoCourseId!,
+            cardId: card.id,
+            topic,
+            status: AdaptiveReviewStatus.DUE,
+            correctStreak: 0,
+            wrongCount: index + 1,
+            nextReviewAt: new Date(Date.now() - 60 * 60 * 1000),
+          },
+        })
+      }
+    }
   }
 
   // Reviews — 15
@@ -468,6 +641,13 @@ async function main() {
         action: "certificate.verified",
         entityType: "Certificate",
         metadata: { verificationCode: "ML-DEMO-2026" },
+      },
+      {
+        actorId: students[0].id,
+        actorEmail: students[0].email,
+        action: "ADAPTIVE_WEAK_TOPIC_DETECTED",
+        entityType: "StudentWeakTopic",
+        metadata: { topic: "CSS Layout", demo: true },
       },
     ],
   })

@@ -63,6 +63,12 @@ enum CertificateStatus {
   REVOKED
 }
 
+enum AdaptiveReviewStatus {
+  DUE
+  SCHEDULED
+  MASTERED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -95,6 +101,9 @@ model User {
   quizAttempts          QuizAttempt[]
   auditLogs             AuditLog[]
   planPayments          PlanPayment[]
+  createdCards          MicrolearningCard[]    @relation("CardCreator")
+  weakTopics            StudentWeakTopic[]     @relation("StudentWeakTopics")
+  adaptiveReviews       AdaptiveReview[]       @relation("StudentAdaptiveReviews")
 }
 
 model Course {
@@ -111,12 +120,15 @@ model Course {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  modules      Module[]
-  enrollments  Enrollment[]
-  reviews      Review[]
-  favorites    Favorite[]
-  certificates Certificate[]
-  reports      ModerationReport[]
+  modules            Module[]
+  enrollments        Enrollment[]
+  reviews            Review[]
+  favorites          Favorite[]
+  certificates       Certificate[]
+  reports            ModerationReport[]
+  microlearningCards MicrolearningCard[]
+  weakTopics         StudentWeakTopic[]
+  adaptiveReviews    AdaptiveReview[]
 
   @@index([category])
   @@index([status])
@@ -155,17 +167,18 @@ model Module {
 }
 
 model Lesson {
-  id         String           @id @default(cuid())
-  title      String
-  type       LessonType
-  content    String?
-  order      Int
-  duration   Int?
-  moduleId   String
-  module     Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  progress   LessonProgress[]
-  assignment Assignment?
-  quiz       Quiz?
+  id                 String              @id @default(cuid())
+  title              String
+  type               LessonType
+  content            String?
+  order              Int
+  duration           Int?
+  moduleId           String
+  module             Module              @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress           LessonProgress[]
+  assignment         Assignment?
+  quiz               Quiz?
+  microlearningCards MicrolearningCard[]
 
   @@index([moduleId])
 }
@@ -223,6 +236,7 @@ model QuizQuestion {
   quizId         String
   type           QuizQuestionType
   text           String
+  topic          String           @default("General")
   options        Json
   correctAnswers Json
   points         Int              @default(1)
@@ -231,6 +245,7 @@ model QuizQuestion {
   quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
   @@index([quizId])
+  @@index([topic])
 }
 
 model QuizAttempt {
@@ -366,5 +381,75 @@ model PlanPayment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
+}
+
+model MicrolearningCard {
+  id          String   @id @default(cuid())
+  courseId    String
+  lessonId    String?
+  topic       String
+  front       String
+  back        String
+  hint        String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson      Lesson?          @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  createdBy   User             @relation("CardCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewItems AdaptiveReview[]
+
+  @@index([courseId])
+  @@index([lessonId])
+  @@index([topic])
+  @@index([createdById])
+}
+
+model StudentWeakTopic {
+  id            String    @id @default(cuid())
+  studentId     String
+  courseId      String
+  topic         String
+  mistakesCount Int       @default(0)
+  attemptsCount Int       @default(0)
+  lastMistakeAt DateTime?
+  strengthScore Int       @default(100)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  student User   @relation("StudentWeakTopics", fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId, topic])
+  @@index([studentId])
+  @@index([courseId])
+  @@index([topic])
+}
+
+model AdaptiveReview {
+  id             String               @id @default(cuid())
+  studentId      String
+  cardId         String
+  courseId       String
+  topic          String
+  status         AdaptiveReviewStatus @default(DUE)
+  correctStreak  Int                  @default(0)
+  wrongCount     Int                  @default(0)
+  nextReviewAt   DateTime             @default(now())
+  lastReviewedAt DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  student User              @relation("StudentAdaptiveReviews", fields: [studentId], references: [id], onDelete: Cascade)
+  card    MicrolearningCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  course  Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, cardId])
+  @@index([studentId])
+  @@index([courseId])
+  @@index([topic])
+  @@index([nextReviewAt])
   @@index([status])
 }

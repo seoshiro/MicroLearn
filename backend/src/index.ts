@@ -27,6 +27,7 @@ import quizRoutes from "./routes/quizzes"
 import notificationRoutes from "./routes/notifications"
 import dashboardRoutes from "./routes/dashboard"
 import adminRoutes from "./routes/admin"
+import adaptiveRoutes, { teacherAdaptiveRouter } from "./routes/adaptive"
 
 const app = express()
 
@@ -89,6 +90,8 @@ app.use("/api/quizzes", quizRoutes)
 app.use("/api/notifications", notificationRoutes)
 app.use("/api/dashboard", dashboardRoutes)
 app.use("/api/admin", adminRoutes)
+app.use("/api/adaptive", adaptiveRoutes)
+app.use("/api/teacher/adaptive", teacherAdaptiveRouter)
 
 // 404 handler
 app.use((req, res) => {

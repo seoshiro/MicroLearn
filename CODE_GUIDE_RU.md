@@ -116,6 +116,7 @@ Seed data — это заранее расставленные учебные э
 - `progress.ts` — завершение урока и прогресс;
 - `assignments.ts` — задания и сдача домашних работ;
 - `quizzes.ts` — тесты и попытки прохождения;
+- `adaptive.ts` — слабые темы, карточки повторения и Adaptive Insights;
 - `certificates.ts` — сертификаты, проверка и отзыв;
 - `dashboard.ts` — кабинеты студента и преподавателя;
 - `admin.ts` — админ-панель, жалобы, сертификаты, audit log;
@@ -132,6 +133,7 @@ Route — это официант: принял запрос, проверил, 
 - `progress.service.ts` — считает прогресс курса;
 - `certificate.service.ts` — создаёт сертификат;
 - `quiz.service.ts` — проверяет ответы теста;
+- `adaptive.service.ts` — находит слабые темы по quiz и планирует повторение карточек;
 - `plan.service.ts` — решает, какой тариф что разрешает;
 - `audit-log.service.ts` — записывает важные действия в журнал;
 - `token.service.ts` — создаёт и проверяет JWT-токены.
@@ -316,6 +318,56 @@ Quiz привязан к уроку.
 - `backend/src/services/quiz.service.test.ts`;
 - `components/ml/lesson-reader.tsx`.
 
+## Как работает Adaptive Microlearning Engine
+
+Adaptive Engine можно представить как внимательного репетитора после теста.
+
+Quiz показывает, где студент ошибся, а Adaptive Engine говорит: “Значит, тему `React Hooks` нужно повторить короткими карточками”. Он не пишет новые тексты и не обращается к AI. Все карточки уже лежат в базе: их заранее создаёт преподаватель или seed-данные.
+
+Что происходит по шагам:
+
+1. У quiz-вопроса есть поле `topic`.
+2. Студент отправляет ответы.
+3. `quiz.service.ts` проверяет, какие вопросы правильные, а какие нет.
+4. `adaptive.service.ts` смотрит темы неправильных вопросов.
+5. Prisma обновляет `StudentWeakTopic`: сколько было ошибок, сколько попыток, какой strength score.
+6. Backend находит `MicrolearningCard` по этой теме и создаёт `AdaptiveReview`.
+7. В кабинете студента появляется Daily Challenge.
+
+Расписание повторения специально простое, чтобы его легко объяснить на защите:
+
+- ошибся -> повторить завтра;
+- правильно -> через 3 дня;
+- ещё раз правильно -> через 7 дней;
+- несколько раз подряд правильно -> через 14 дней.
+
+Для студента это выглядит как короткая тренировка: вопрос карточки, кнопка “Показать ответ”, затем “Знал” или “Ошибся”.
+
+Для преподавателя это аналитика: какие темы чаще всего слабые у студентов по его курсу и какие карточки уже подготовлены.
+
+Стабильный demo-сценарий для защиты:
+
+1. Войти студентом `temir@microlearn.io` / `Password123!`.
+2. Открыть `/student/adaptive`.
+3. После fresh seed показать стартовые данные: 5 карточек Daily Challenge и 2 слабые темы.
+4. Показать темы стартовых карточек: `CSS Layout` — 3 карточки, `TypeScript Types` — 2 карточки.
+5. Открыть курс `Intro to Figma`, урок `1.4 Контрольный чеклист`.
+6. Пройти quiz с ошибками.
+7. Вернуться на `/student/adaptive` и показать, что Daily Challenge и слабые темы обновились по темам ошибок.
+8. Войти преподавателем `aigerim@microlearn.io` / `Password123!`.
+9. В кабинете преподавателя открыть Adaptive Insights по курсу `Intro to Figma`.
+
+Для этой демонстрации лучше использовать именно `aigerim@microlearn.io`: weak topics из seed привязаны к её курсу `Intro to Figma`. Аккаунт `daniyar@microlearn.io` тоже имеет карточки, но после fresh seed не показывает готовые слабые темы студентов.
+
+Главные файлы:
+
+- `backend/prisma/schema.prisma` — модели `MicrolearningCard`, `StudentWeakTopic`, `AdaptiveReview`;
+- `backend/src/services/adaptive.service.ts` — расчёт слабых тем и расписания;
+- `backend/src/routes/adaptive.ts` — API для студента и преподавателя;
+- `components/ml/student/adaptive-daily-challenge.tsx` — блок в кабинете студента;
+- `components/ml/student/adaptive-practice.tsx` — экран прохождения карточек;
+- `components/ml/teacher/adaptive-insights.tsx` — преподавательская аналитика и карточки.
+
 ## Как работают сертификаты
 
 Сертификат создаётся после завершения курса для Premium-пользователя.
@@ -352,6 +404,8 @@ Audit log — это журнал важных действий.
 - студент отправил задание;
 - преподаватель проверил работу;
 - студент прошёл тест;
+- adaptive engine нашёл слабую тему;
+- студент прошёл карточку повторения;
 - пользователь сменил тариф;
 - админ отозвал сертификат.
 
@@ -427,6 +481,7 @@ Audit log — это журнал важных действий.
 | Прогресс                  | `backend/src/routes/progress.ts`, `backend/src/services/progress.service.ts`        |
 | Задания                   | `backend/src/routes/assignments.ts`                                                 |
 | Тесты                     | `backend/src/routes/quizzes.ts`, `backend/src/services/quiz.service.ts`             |
+| Adaptive повторение       | `backend/src/routes/adaptive.ts`, `backend/src/services/adaptive.service.ts`        |
 | Сертификаты               | `backend/src/routes/certificates.ts`, `backend/src/services/certificate.service.ts` |
 | Тарифы и Stripe test mode | `backend/src/routes/plans.ts`, `backend/src/services/payment.service.ts`            |
 | Audit log                 | `backend/src/services/audit-log.service.ts`, `backend/src/routes/admin.ts`          |
@@ -437,4 +492,4 @@ Audit log — это журнал важных действий.
 
 Если объяснять проект за одну минуту:
 
-> MicroLearn — это LMS-платформа для коротких курсов. Frontend сделан на Next.js, backend на Express, база PostgreSQL через Prisma. Есть роли студента, преподавателя и администратора. Студент записывается на курс, проходит уроки, сдаёт задания и тесты, получает сертификат. Преподаватель проверяет работы и видит аналитику. Админ управляет пользователями, жалобами, сертификатами и audit log. Оплата работает через Stripe test mode: можно показать PaymentIntent и карту 4242, но реальные деньги не списываются.
+> MicroLearn — это LMS-платформа для коротких курсов. Frontend сделан на Next.js, backend на Express, база PostgreSQL через Prisma. Есть роли студента, преподавателя и администратора. Студент записывается на курс, проходит уроки, сдаёт задания и тесты, получает сертификат. Adaptive Engine анализирует ошибки в quiz и выдаёт короткие повторения по слабым темам без AI. Преподаватель проверяет работы и видит аналитику. Админ управляет пользователями, жалобами, сертификатами и audit log. Оплата работает через Stripe test mode: можно показать PaymentIntent и карту 4242, но реальные деньги не списываются.

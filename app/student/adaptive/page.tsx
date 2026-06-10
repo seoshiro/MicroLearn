@@ -1,10 +1,9 @@
 import { PageShell } from "@/components/ml/page-shell"
 import { DashboardShell } from "@/components/ml/dashboard/shell"
-import { ActiveCourses } from "@/components/ml/student/active-courses"
-import { StudentLibrary } from "@/components/ml/student/library"
+import { AdaptivePractice } from "@/components/ml/student/adaptive-practice"
 
 export const metadata = {
-  title: "Мои курсы · MicroLearn",
+  title: "Ежедневное повторение · MicroLearn",
 }
 
 const studentNav = [
@@ -15,18 +14,17 @@ const studentNav = [
   { label: "Профиль", href: "/profile/student" },
 ]
 
-export default function StudentCoursesPage() {
+export default function StudentAdaptivePage() {
   return (
     <PageShell>
       <DashboardShell
-        edition="Обучение"
+        edition="Adaptive"
         role="Студент"
-        title="Мои курсы"
-        subtitle="Активные записи, сохранения и сертификаты"
+        title="Персональное повторение"
+        subtitle="Карточки и слабые темы по результатам quiz"
         nav={studentNav}
       >
-        <ActiveCourses />
-        <StudentLibrary />
+        <AdaptivePractice />
       </DashboardShell>
     </PageShell>
   )

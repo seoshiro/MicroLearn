@@ -10,6 +10,7 @@ const studentNav = [
   { label: "Сводка", href: "/student" },
   { label: "Мои курсы", href: "/student/courses" },
   { label: "Расписание", href: "/student/schedule" },
+  { label: "Повторение", href: "/student/adaptive" },
   { label: "Профиль", href: "/profile/student" },
 ]
 

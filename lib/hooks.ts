@@ -231,6 +231,7 @@ export type LessonQuiz = {
     id: string
     type: "SINGLE_CHOICE" | "MULTIPLE_CHOICE"
     text: string
+    topic: string
     options: string[]
     points: number
     order: number
@@ -323,6 +324,67 @@ export type AdminCertificate = {
   revokedBy?: { id: string; name: string; email: string } | null
 }
 
+export type MicrolearningCard = {
+  id: string
+  courseId: string
+  lessonId?: string | null
+  topic: string
+  front: string
+  back: string
+  hint?: string | null
+  createdById: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type AdaptiveReviewItem = {
+  id: string
+  studentId: string
+  cardId: string
+  courseId: string
+  topic: string
+  status: "DUE" | "SCHEDULED" | "MASTERED"
+  correctStreak: number
+  wrongCount: number
+  nextReviewAt: string
+  lastReviewedAt?: string | null
+  card: MicrolearningCard
+  course: { id: string; title: string }
+}
+
+export type AdaptiveDailyChallenge = {
+  total: number
+  topics: { topic: string; count: number }[]
+  items: AdaptiveReviewItem[]
+}
+
+export type StudentWeakTopic = {
+  id: string
+  studentId: string
+  courseId: string
+  topic: string
+  mistakesCount: number
+  attemptsCount: number
+  lastMistakeAt?: string | null
+  strengthScore: number
+  riskLevel: "low" | "medium" | "high"
+  course: { id: string; title: string }
+}
+
+export type TeacherAdaptiveInsights = {
+  courseId: string
+  topics: {
+    topic: string
+    mistakesCount: number
+    attemptsCount: number
+    studentsCount: number
+    avgStrengthScore: number
+    cardsCount: number
+  }[]
+  cards: MicrolearningCard[]
+  weakTopics: (StudentWeakTopic & { student: { id: string; name: string; email: string } })[]
+}
+
 // -------- Именованные хуки --------
 
 export const useStudentDashboard = () => useProtectedFetch<StudentDashboard>("/dashboard/student")
@@ -341,19 +403,33 @@ export const useMyEnrollments = () => useProtectedFetch<EnrollmentItem[]>("/enro
 export const useMyFavorites = () => useProtectedFetch<FavoriteItem[]>("/favorites/my")
 export const useMyCertificates = () => useProtectedFetch<CertificateItem[]>("/certificates/my")
 export const useMyNotifications = () => useProtectedFetch<NotificationItem[]>("/notifications/my")
+export const useAdaptiveDailyChallenge = () =>
+  useProtectedFetch<AdaptiveDailyChallenge>("/adaptive/daily-challenge")
+export const useStudentWeakTopics = () =>
+  useProtectedFetch<StudentWeakTopic[]>("/adaptive/weak-topics")
+export const useTeacherAdaptiveInsights = (courseId?: string | null) =>
+  useProtectedFetch<TeacherAdaptiveInsights>(
+    courseId ? `/teacher/adaptive/course/${courseId}/insights` : null,
+  )
+export const useAdaptiveCards = (courseId?: string | null) =>
+  useProtectedFetch<MicrolearningCard[]>(
+    courseId ? `/adaptive/cards?courseId=${encodeURIComponent(courseId)}` : null,
+  )
 
 export const usePlans = () => useFetch<PlanDef[]>("/plans")
 
 export const useTeachers = () => useFetch<TeacherPublic[]>("/users")
 
-export function useCourses(params?: {
-  category?: string
-  search?: string
-  sort?: "rating" | "newest" | "price_asc" | "price_desc"
-  page?: number
-  limit?: number
-  teacherId?: string
-}) {
+export function useCourses(
+  params?: {
+    category?: string
+    search?: string
+    sort?: "rating" | "newest" | "price_asc" | "price_desc"
+    page?: number
+    limit?: number
+    teacherId?: string
+  } | null,
+) {
   const qs = params
     ? "?" +
       new URLSearchParams(
@@ -362,7 +438,9 @@ export function useCourses(params?: {
           .map(([k, v]) => [k, String(v)]),
       ).toString()
     : ""
-  return useFetch<CourseListItem[]>(`/courses${qs}`, [qs])
+  return useFetch<CourseListItem[]>(params === null ? null : `/courses${qs}`, [
+    params === null ? "disabled" : qs,
+  ])
 }
 
 export const useCourse = (id?: string | null) =>

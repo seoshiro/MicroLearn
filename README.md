@@ -13,8 +13,9 @@ MicroLearn — дипломный MVP LMS-платформы для коротк
 - Запись студента на курс, избранное, отзывы и прогресс по урокам.
 - Задания к урокам: сдача работы студентом, проверка преподавателем, оценка и обратная связь.
 - Тесты к урокам: `SINGLE_CHOICE`, `MULTIPLE_CHOICE`, автопроверка и попытки прохождения.
+- Adaptive Microlearning Engine: слабые темы по ошибкам в quiz, карточки повторения, Daily Challenge и простое spaced repetition-расписание.
 - Кабинет студента: активные курсы, расписание, прогресс, профиль.
-- Кабинет преподавателя: статистика, список курсов, создание курса, модули, уроки и аналитика по студентам.
+- Кабинет преподавателя: статистика, список курсов, создание курса, модули, уроки, аналитика по студентам и Adaptive Insights.
 - Admin-панель: пользователи, курсы, жалобы, сертификаты, audit log и общая статистика.
 - Генерация сертификатов, публичная проверка по `verificationCode` и административный отзыв сертификата.
 - Audit log ключевых действий: запись на курс, завершение урока, сдача задания, попытка теста, тариф и сертификаты.
@@ -37,7 +38,7 @@ MicroLearn — дипломный MVP LMS-платформы для коротк
 - Database: PostgreSQL.
 - Auth: JWT access token и httpOnly refresh cookie.
 - Files: Multer uploads, PDF certificates.
-- Learning features: assignments, submissions, quiz attempts, certificate verification, audit log.
+- Learning features: assignments, submissions, quiz attempts, adaptive review cards, certificate verification, audit log.
 - Monitoring: Prometheus, Grafana, `prom-client`.
 - Tests: Vitest, Supertest, Playwright smoke test.
 - Package manager: npm.
@@ -140,6 +141,49 @@ Password123!
 | `STUDENT` | `temir@microlearn.io`   |
 | `STUDENT` | `madina@microlearn.io`  |
 
+Для демонстрации Adaptive Microlearning Engine используйте связку:
+
+- студент: `temir@microlearn.io` / `Password123!`;
+- преподаватель: `aigerim@microlearn.io` / `Password123!`;
+- курс преподавателя: `Intro to Figma`.
+
+После fresh seed студент Temir сразу видит 5 карточек в Daily Challenge:
+
+- 3 карточки по `CSS Layout`;
+- 2 карточки по `TypeScript Types`;
+- 2 слабые темы в списке Weak Topics.
+
+## Adaptive Microlearning Engine
+
+Adaptive Microlearning Engine — это локальная учебная логика без AI и без внешних сервисов. Система не генерирует текст. Она анализирует уже готовые quiz-вопросы и заранее созданные преподавателем карточки.
+
+Как работает:
+
+1. У каждого quiz-вопроса есть `topic`, например `React Hooks`, `TypeScript Types`, `CSS Layout`.
+2. Когда студент ошибается в quiz, backend записывает тему как слабую в `StudentWeakTopic`.
+3. Backend ищет готовые `MicrolearningCard` по этой теме и создаёт `AdaptiveReview`.
+4. В кабинете студента появляется Daily Challenge: карточки, которые нужно повторить сегодня.
+5. После ответа на карточку расписание обновляется:
+   - ошибся -> завтра;
+   - ответил правильно -> через 3 дня;
+   - снова правильно -> через 7 дней;
+   - несколько правильных подряд -> через 14 дней.
+
+Student видит только свои слабые темы и карточки. Teacher видит Adaptive Insights только по своим курсам и может создавать, редактировать и удалять карточки. Admin может управлять карточками по всем курсам.
+
+Основные endpoints:
+
+```text
+GET  /api/adaptive/weak-topics
+GET  /api/adaptive/daily-challenge
+POST /api/adaptive/review/:id/answer
+GET  /api/teacher/adaptive/course/:courseId/insights
+GET  /api/adaptive/cards?courseId=...
+POST /api/adaptive/cards
+PATCH /api/adaptive/cards/:id
+DELETE /api/adaptive/cards/:id
+```
+
 ## Stripe test mode оплата
 
 В дипломном MVP оплата подключена через Stripe test mode. Это безопасный режим Stripe: можно показать реальный `PaymentIntent`, Stripe Elements и подтверждение оплаты, но банковские деньги не списываются.
@@ -187,15 +231,20 @@ npm run dev
 5. Открыть страницу курса и объяснить программу, цену, отзывы и прогресс.
 6. Войти как студент `temir@microlearn.io` / `Password123!`.
 7. Показать кабинет студента, список курсов и продолжение обучения.
-8. Открыть урок, показать задание и тест: студент сдаёт работу и проходит quiz.
-9. Войти как преподаватель `aigerim@microlearn.io` / `Password123!`.
-10. Показать кабинет преподавателя: курсы, проверка задания и аналитику по студентам.
-11. Войти как администратор `admin@microlearn.io` / `Password123!`.
-12. Показать admin-панель: пользователи, курсы, жалобы, сертификаты и audit log.
-13. Открыть `/certificates/verify/ML-DEMO-2026` и показать публичную проверку сертификата.
-14. При необходимости отозвать demo-сертификат в admin-панели и обновить страницу проверки.
-15. Открыть `/pricing`, выбрать платный тариф и показать Stripe test mode оплату картой `4242 4242 4242 4242`.
-16. Коротко объяснить, что Google/OAuth не входит в MVP и может быть добавлен позже.
+8. Открыть `/student/adaptive` и показать начальное состояние после seed: 5 карточек на сегодня и 2 слабые темы.
+9. Нажать "Показать ответ" на карточке и выбрать "Знал" или "Ошибся", чтобы показать обновление расписания повторения.
+10. Открыть курс `Intro to Figma`, урок `1.4 Контрольный чеклист`, пройти quiz и специально ошибиться в ответах.
+11. Вернуться на `/student/adaptive` и показать, что Daily Challenge и список слабых тем обновились по темам ошибок, например `CSS Layout` и `React Components`.
+12. Объяснить, что Adaptive Engine не использует AI: он берёт тему ошибки и заранее созданные карточки.
+13. Войти как преподаватель `aigerim@microlearn.io` / `Password123!`.
+14. Открыть кабинет преподавателя и курс `Intro to Figma`.
+15. В Adaptive Insights показать топ слабых тем, количество ошибок, студентов и карточки курса.
+16. Войти как администратор `admin@microlearn.io` / `Password123!`.
+17. Показать admin-панель: пользователи, курсы, жалобы, сертификаты и audit log.
+18. Открыть `/certificates/verify/ML-DEMO-2026` и показать публичную проверку сертификата.
+19. При необходимости отозвать demo-сертификат в admin-панели и обновить страницу проверки.
+20. Открыть `/pricing`, выбрать платный тариф и показать Stripe test mode оплату картой `4242 4242 4242 4242`.
+21. Коротко объяснить, что Google/OAuth не входит в MVP и может быть добавлен позже.
 
 ## Проверка качества
 
@@ -204,6 +253,7 @@ npm run dev
 ### Frontend
 
 **`tests/frontend-smoke.test.ts`** — smoke-тесты утилит форматирования UI:
+
 - Проверяет форматирование денег (`formatKZT`) — отображает сумму в тенге с пробелом-разделителем разрядов.
 - Проверяет форматирование чисел (`formatNumber`) — тысячный разделитель.
 - Проверяет компактный формат (`formatCompact`) — сокращение "тыс." для больших чисел.
@@ -211,20 +261,33 @@ npm run dev
 ### Backend
 
 **`backend/src/services/quiz.service.test.ts`** — юнит-тесты логики оценки тестов (quiz):
+
 - Оценивает `SINGLE_CHOICE` и `MULTIPLE_CHOICE` вопросы: при полном совпадении ответов начисляются все баллы.
 - Проверяет, что неполный ответ на `MULTIPLE_CHOICE` (выбран не весь набор правильных вариантов) даёт 0 баллов — частичные баллы не начисляются.
 
 **`backend/src/services/learning-flow.test.ts`** — юнит-тесты бизнес-процессов обучения (с моком Prisma):
+
 - Разрешает запись на курс, если план пользователя удовлетворяет ограничениям.
 - Блокирует запись, когда лимит бесплатного плана достигнут (например, 3 записи).
 - Вычисляет процент прогресса курса на основе количества завершённых уроков.
+- Выдаёт сертификат после завершения курса и сохраняет URL PDF.
+
+**`backend/src/routes/adaptive.test.ts`** — интеграционные тесты Adaptive Microlearning Engine (Supertest + мок Prisma):
+
+- Неправильный ответ в quiz создаёт weak topic и review items по карточкам темы.
+- Ответ на карточку обновляет `nextReviewAt`, `correctStreak` и `wrongCount`.
+- Student видит только свои weak topics.
+- Teacher видит insights только по своим курсам.
+- Student не может создавать flashcards.
 - Проверяет выдачу сертификата: создаётся запись в БД и файл сохраняется в `uploads/certificates/`.
 
 **`backend/src/routes/auth.test.ts`** — интеграционные тесты авторизации (Supertest, мок Prisma + email):
+
 - Регистрация нового пользователя: возвращает `accessToken`, безопасный payload (без `passwordHash`) и httpOnly cookie `mlrt`.
 - Полный жизненный цикл сессии: логин → refresh токена → logout. Проверяется, что refresh обновляет access token, а logout завершает сессию (`204`).
 
 **`backend/src/routes/lms-features.test.ts`** — интеграционные тесты LMS-функциональности (Supertest, мок Prisma):
+
 - Сценарий "студент сдаёт задание → преподаватель проверяет и ставит оценку".
 - Автопроверка quiz-attempt: отправка ответов, вычисление баллов и прохождение/непрохождение теста.
 - Защита прав доступа: студент не может проверять задания (`403`).

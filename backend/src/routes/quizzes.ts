@@ -9,6 +9,7 @@ import { verifyAccess, requireRole } from "../middleware/auth"
 import { assertCanStudyLesson } from "../services/learning-access.service"
 import { gradeQuizAttempt, QuizAnswer } from "../services/quiz.service"
 import { writeAuditLog } from "../services/audit-log.service"
+import { processQuizAttemptForAdaptive } from "../services/adaptive.service"
 
 const router = Router()
 
@@ -31,7 +32,15 @@ router.get(
       include: {
         questions: {
           orderBy: { order: "asc" },
-          select: { id: true, type: true, text: true, options: true, points: true, order: true },
+          select: {
+            id: true,
+            type: true,
+            text: true,
+            topic: true,
+            options: true,
+            points: true,
+            order: true,
+          },
         },
         attempts: {
           where: req.user!.role === Role.STUDENT ? { userId: req.user!.id } : undefined,
@@ -52,7 +61,10 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const quiz = await prisma.quiz.findUnique({
       where: { id: req.params.id },
-      include: { questions: { orderBy: { order: "asc" } }, lesson: true },
+      include: {
+        questions: { orderBy: { order: "asc" } },
+        lesson: { include: { module: { select: { courseId: true } } } },
+      },
     })
     if (!quiz) throw new HttpError(404, "Quiz not found")
     await assertCanStudyLesson(quiz.lessonId, req.user!.id, req.user!.role)
@@ -77,6 +89,13 @@ router.post(
       entityType: "QuizAttempt",
       entityId: attempt.id,
       metadata: { quizId: quiz.id, score: attempt.score, passed: attempt.passed },
+    })
+
+    await processQuizAttemptForAdaptive({
+      req,
+      studentId: req.user!.id,
+      quiz,
+      results: graded.results,
     })
 
     res.status(201).json({ data: { ...attempt, percent, results: graded.results } })
